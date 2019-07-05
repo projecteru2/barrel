@@ -18,6 +18,6 @@ deps:
 test:
 
 binary:
-	go build -ldflags "$(GO_LDFLAGS)" -a -tags netgo -installsuffix netgo -o $(BUILD_PATH)/barrel barrel.go
+	go build -ldflags "$(GO_LDFLAGS)" -a -tags netgo -installsuffix netgo -o $(BUILD_PATH)/eru-barrel barrel.go
 
 build: clean test binary
