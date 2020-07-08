@@ -2,6 +2,7 @@ package sock
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 // DockerSocket .
 type DockerSocket struct {
 	httpClient *http.Client
+	// simpleHttpClient utils.SimpleHTTPClient
 }
 
 var regexpHTTPScheme *regexp.Regexp = regexp.MustCompile("((http)|(https))://.*")
@@ -27,30 +29,38 @@ func NewDockerSocket(dockerdSocketPath string, dialTimeout time.Duration) Docker
 				},
 			},
 		},
+		// simpleHttpClient: utils.SimpleHTTPClient{
+		// 	ConnFactory: func() (net.Conn, error) {
+		// 		return net.DialTimeout("unix", dockerdSocketPath, dialTimeout)
+		// 	},
+		// },
 	}
 }
 
 func (sock DockerSocket) Request(rawRequest *http.Request) (*http.Response, error) {
-	var err error
+	return sock.DoRequest(rawRequest.Method, rawRequest.URL.String(), rawRequest.Header, rawRequest.Body)
+}
 
-	method := rawRequest.Method
-	url := processURL(rawRequest.URL.String())
-	body := rawRequest.Body
+func (sock DockerSocket) DoRequest(method string, url string, header http.Header, body io.Reader) (clientResponse *http.Response, err error) {
+	url = processURL(url)
 
 	var clientRequest *http.Request
 	if clientRequest, err = http.NewRequest(method, url, body); err != nil {
 		log.Errorln("create HttpClientRequest error", err)
 		return nil, err
 	}
-	clientRequest.Header = rawRequest.Header
+	clientRequest.Header = header
 
-	var clientResponse *http.Response
-	clientResponse, err = sock.httpClient.Do(clientRequest)
-	if err != nil {
+	if clientResponse, err = sock.httpClient.Do(clientRequest); err != nil {
 		log.Errorln("send HttpClientRequest error", err)
 	}
-	return clientResponse, err
+	return
 }
+
+// // SimpleRequest .
+// func (sock DockerSocket) SimpleRequest(simpleRequest utils.SimpleHTTPRequest) (utils.SimpleHTTPResponse, error) {
+// 	return sock.simpleHttpClient.Request(simpleRequest)
+// }
 
 func processURL(url string) string {
 	if strings.HasPrefix(url, "/") {

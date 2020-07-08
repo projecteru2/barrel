@@ -93,6 +93,8 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJ
 github.com/modern-go/reflect2 v1.0.1 h1:9f412s+6RmYXLWZSEzVVgPGK7C2PphHj5RJrvfx9AWI=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
+github.com/nyanpassu/minions v0.0.0-20200707104254-075470f5f35c h1:1p8vvT++9QohGEQgbpHbxm7peuqWaDKmXeIWTfYeXcI=
+github.com/nyanpassu/minions v0.0.0-20200707104254-075470f5f35c/go.mod h1:OCzrxu+uzmmZ2yPTlzxAvQ8UepM8hhFpiX+xA1y80hQ=
 github.com/opencontainers/go-digest v1.0.0-rc1/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQYUd2OVphdqWwCJHrFt2s=
 github.com/opencontainers/image-spec v1.0.1-0.20180411145040-e562b0440392/go.mod h1:BtxoFyWECRxE4U/7sNtV5W15zMzWCbyJoFRP3s7yZA0=
 github.com/pborman/uuid v0.0.0-20150603214016-ca53cad383ca h1:dKRMHfduZ/ZqOHuYGk/0kkTIUbnyorkAfzLOp6Ts8pU=

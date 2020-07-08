@@ -13,7 +13,6 @@ import (
 var regexDeleteContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/([a-zA-Z0-9][a-zA-Z0-9_.-]*)(\?.*)?`)
 
 type ContainerDeleteHandler struct {
-	netUtil        utils.NetUtil
 	inspectHandler ContainerInspectHandler
 	dockerSocket   sock.DockerSocket
 	minionsClient  minions.Client
@@ -24,12 +23,11 @@ type ContainerDeleteRequest struct {
 	IDOrName string
 }
 
-func NewContainerDeleteHandler(dockerSocket sock.DockerSocket, minionsClient minions.Client, netUtil utils.NetUtil) ContainerDeleteHandler {
+func NewContainerDeleteHandler(dockerSocket sock.DockerSocket, minionsClient minions.Client) ContainerDeleteHandler {
 	return ContainerDeleteHandler{
-		netUtil:        netUtil,
 		dockerSocket:   dockerSocket,
 		minionsClient:  minionsClient,
-		inspectHandler: ContainerInspectHandler{netUtil: netUtil, dockerSocket: dockerSocket},
+		inspectHandler: ContainerInspectHandler{dockerSocket: dockerSocket},
 	}
 }
 
@@ -40,6 +38,7 @@ func (handler ContainerDeleteHandler) Handle(response http.ResponseWriter, reque
 	if containerDeleteRequest, handled = handler.match(request); !handled {
 		return
 	}
+	log.Info("handle container remove request")
 
 	var (
 		err    error
@@ -63,7 +62,7 @@ func (handler ContainerDeleteHandler) Handle(response http.ResponseWriter, reque
 	var resp *http.Response
 	if resp, err = handler.dockerSocket.Request(request); err != nil {
 		log.Errorln(err)
-		if err := utils.WriteHTTPInternalServerErrorResponse(
+		if err := utils.WriteBadGateWayResponse(
 			response,
 			utils.HTTPSimpleMessageResponseBody{
 				Message: "send container remove request to docker socket error",
@@ -78,7 +77,7 @@ func (handler ContainerDeleteHandler) Handle(response http.ResponseWriter, reque
 		go handler.releaseReservedIP(containerDeleteRequest.IDOrName, fullID)
 	}
 
-	if err = handler.netUtil.Forward(resp, response); err != nil {
+	if err = utils.Forward(resp, response); err != nil {
 		log.Errorln(err)
 	}
 	return

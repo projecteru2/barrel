@@ -14,7 +14,6 @@ import (
 type ContainerPruneHandle struct {
 	dockerSocket  sock.DockerSocket
 	minionsClient minions.Client
-	netUtil       utils.NetUtil
 }
 
 type ContainerPruneResult struct {
@@ -23,26 +22,25 @@ type ContainerPruneResult struct {
 
 var regexPruneContainers *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/prune(\?.*)?`)
 
-func NewContainerPruneHandle(dockerSocket sock.DockerSocket, minionsClient minions.Client, netUtil utils.NetUtil) ContainerPruneHandle {
+func NewContainerPruneHandle(dockerSocket sock.DockerSocket, minionsClient minions.Client) ContainerPruneHandle {
 	return ContainerPruneHandle{
-		netUtil:       netUtil,
 		dockerSocket:  dockerSocket,
 		minionsClient: minionsClient,
 	}
 }
 
 func (handler ContainerPruneHandle) Handle(response http.ResponseWriter, request *http.Request) (handled bool) {
-	if !handler.match(request) {
+	if handled = handler.match(request); !handled {
 		return
 	}
-	handled = true
+	log.Info("handle container prune request")
 
 	var (
 		resp *http.Response
 		err  error
 	)
 	if resp, err = handler.dockerSocket.Request(request); err != nil {
-		if err := utils.WriteHTTPInternalServerErrorResponse(
+		if err := utils.WriteBadGateWayResponse(
 			response,
 			utils.HTTPSimpleMessageResponseBody{
 				Message: "send container prune request to docker socket error",
@@ -54,7 +52,7 @@ func (handler ContainerPruneHandle) Handle(response http.ResponseWriter, request
 
 	if resp.StatusCode == 200 {
 		var data []byte
-		if data, err = handler.netUtil.ReadAndForward(resp, response); err != nil {
+		if data, err = utils.ReadAndForward(resp, response); err != nil {
 			log.Errorln(err)
 			return
 		}
@@ -71,7 +69,7 @@ func (handler ContainerPruneHandle) Handle(response http.ResponseWriter, request
 		return
 	}
 
-	if err = handler.netUtil.Forward(resp, response); err != nil {
+	if err = utils.Forward(resp, response); err != nil {
 		log.Errorln(err)
 	}
 	return

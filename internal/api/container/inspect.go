@@ -8,7 +8,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/projecteru2/barrel/internal/sock"
-	"github.com/projecteru2/barrel/internal/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,7 +18,6 @@ type ContainerInspectResult struct {
 
 // ContainerInspectHandler .
 type ContainerInspectHandler struct {
-	netUtil      utils.NetUtil
 	dockerSocket sock.DockerSocket
 }
 

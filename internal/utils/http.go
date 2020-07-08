@@ -10,8 +10,8 @@ type HTTPSimpleMessageResponseBody struct {
 	Message string `json:"message"`
 }
 
-func WriteHTTPInternalServerErrorResponse(writer http.ResponseWriter, body HTTPSimpleMessageResponseBody) error {
-	return WriteHTTPJSONResponse(writer, http.StatusInternalServerError, nil, body)
+func WriteBadGateWayResponse(writer http.ResponseWriter, body HTTPSimpleMessageResponseBody) error {
+	return WriteHTTPJSONResponse(writer, http.StatusBadGateway, nil, body)
 }
 
 func WriteHTTPJSONResponse(writer http.ResponseWriter, statusCode int, prevHeader http.Header, body interface{}) error {
