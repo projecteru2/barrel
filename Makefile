@@ -9,15 +9,21 @@ GO_LDFLAGS ?= -s -X $(REPO_PATH)/versioninfo.REVISION=$(REVISION) \
 			  -X $(REPO_PATH)/versioninfo.BUILTAT=$(BUILTAT) \
 			  -X $(REPO_PATH)/versioninfo.VERSION=$(VERSION)
 
-clean:
-	rm -rf target
-
 deps:
-	go mod download
+	env GO111MODULE=on go mod download
+	env GO111MODULE=on go mod vendor
 
 test:
+	go vet `go list ./... | grep -v '/vendor/' | grep -v '/tools'`
+	go test -timeout 120s -count=1 -cover ./...
 
 binary:
-	go build -ldflags "$(GO_LDFLAGS)" -a -tags netgo -installsuffix netgo -o $(BUILD_PATH)/eru-barrel barrel.go
+	go build -ldflags "$(GO_LDFLAGS)" -a -tags "netgo osusergo" -installsuffix netgo -o eru-barrel
 
-build: clean test binary
+cloc:
+	cloc --exclude-dir=vendor,3rdmocks,mocks,tools --not-match-f=test .
+
+lint:
+	golangci-lint run
+
+build: test binary
