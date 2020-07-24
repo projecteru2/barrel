@@ -46,19 +46,6 @@ type _AtomicBool struct {
 	value int32
 }
 
-func _NewAtomicBool(value bool) _AtomicBool {
-	if value {
-		return _AtomicBool{_True}
-	}
-	return _AtomicBool{_False}
-}
-
-func _NewSharedAtomicBool(value bool) (b *_AtomicBool) {
-	b = new(_AtomicBool)
-	b.set(value)
-	return
-}
-
 func (b *_AtomicBool) set(value bool) {
 	if value {
 		atomic.StoreInt32(&b.value, _True)
