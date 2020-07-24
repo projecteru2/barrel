@@ -166,7 +166,7 @@ func run(c *cli.Context) (err error) {
 
 	parser := utils.NewHostsParser(dockerGid, c.String("tls-cert"), c.String("tls-key"))
 	var hosts []types.Host
-	if hosts, err = parser.Parse(c.StringSlice("hosts")); err != nil {
+	if hosts, err = parser.Parse(c.StringSlice("host")); err != nil {
 		return
 	}
 	go func() {
