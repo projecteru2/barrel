@@ -102,6 +102,7 @@ func main() {
 				Aliases: []string{"H"},
 				Value:   cli.NewStringSlice("unix:///var/run/barrel.sock"),
 				Usage:   "host, can set multiple times",
+				EnvVars: []string{"BARREL_HOSTS"},
 			},
 			&cli.StringFlag{
 				Name:    "tls-cert",
