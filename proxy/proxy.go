@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -10,22 +9,15 @@ import (
 
 	etcdv3 "github.com/coreos/etcd/clientv3"
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
-	"github.com/projecteru2/barrel/internal/api/container"
-	"github.com/projecteru2/barrel/internal/sock"
-	"github.com/projecteru2/barrel/internal/types"
-	"github.com/projecteru2/barrel/internal/utils"
+	"github.com/projecteru2/barrel/api"
+	"github.com/projecteru2/barrel/common"
+	"github.com/projecteru2/barrel/sock"
+	"github.com/projecteru2/barrel/sock/docker"
+	"github.com/projecteru2/barrel/types"
+	"github.com/projecteru2/barrel/utils"
 	minions "github.com/projecteru2/minions/lib"
 	log "github.com/sirupsen/logrus"
 )
-
-var (
-	debug bool
-)
-
-// Initialize .
-func Initialize(_debug bool) {
-	debug = _debug
-}
 
 // Config .
 type Config struct {
@@ -36,9 +28,9 @@ type Config struct {
 
 // DockerdProxy .
 type DockerdProxy struct {
-	mux          *http.ServeMux
-	handlers     []types.RequestHandler
-	dockerSocket sock.DockerSocket
+	mux      *http.ServeMux
+	handlers []types.RequestHandler
+	sock     sock.SocketInterface
 }
 
 // NewProxy .
@@ -47,11 +39,12 @@ func NewProxy(config Config, etcdV3 *etcdv3.Client, calicoV3 calicov3.Interface)
 	proxy.mux = http.NewServeMux()
 	proxy.mux.HandleFunc("/", proxy.dispatch)
 	minionsClient := minions.NewClient(etcdV3, calicoV3)
-	dockerSocket := sock.NewDockerSocket(config.DockerdSocketPath, config.DialTimeout)
-	proxy.dockerSocket = dockerSocket
-	proxy.addHandler(container.NewContainerDeleteHandler(dockerSocket, minionsClient))
-	proxy.addHandler(container.NewContainerPruneHandle(dockerSocket, minionsClient))
-	proxy.addHandler(container.NewContainerCreateHandler(dockerSocket, minionsClient, config.IPPoolNames))
+	// TODO only docker socket support
+	dockerSocket := docker.NewSocket(config.DockerdSocketPath, config.DialTimeout)
+	proxy.sock = dockerSocket
+	proxy.addHandler(api.NewContainerDeleteHandler(dockerSocket, minionsClient))
+	proxy.addHandler(api.NewContainerPruneHandle(dockerSocket, minionsClient))
+	proxy.addHandler(api.NewContainerCreateHandler(dockerSocket, minionsClient, config.IPPoolNames))
 	return proxy
 }
 
@@ -60,10 +53,10 @@ func (proxy *DockerdProxy) addHandler(handler types.RequestHandler) {
 }
 
 // Start will block
-func (proxy *DockerdProxy) Start(host ...Host) error {
+func (proxy *DockerdProxy) Start(host ...types.Host) error {
 	switch len(host) {
 	case 0:
-		return errors.New("no listener is provided")
+		return common.ErrNoListener
 	case 1:
 		return proxy.startOnHost(host[0])
 	default:
@@ -72,13 +65,13 @@ func (proxy *DockerdProxy) Start(host ...Host) error {
 }
 
 // StartOnListeners .
-func (proxy *DockerdProxy) startOnHosts(hosts []Host) error {
+func (proxy *DockerdProxy) startOnHosts(hosts []types.Host) error {
 	return startHostGroup(proxy.mux, hosts)
 }
 
-func (proxy *DockerdProxy) startOnHost(host Host) (err error) {
+func (proxy *DockerdProxy) startOnHost(host types.Host) (err error) {
 	addr := host.Listener.Addr().String()
-	log.Infof("Starting proxy at %s", addr)
+	log.Infof("[startOnHost] Starting proxy at %s", addr)
 	server := http.Server{
 		Addr:    addr,
 		Handler: proxy.mux,
@@ -90,17 +83,15 @@ func (proxy *DockerdProxy) startOnHost(host Host) (err error) {
 }
 
 func (proxy *DockerdProxy) dispatch(response http.ResponseWriter, request *http.Request) {
-	log.Infof("Incoming request, method = %s, url = %s", request.Method, request.URL.String())
-	if debug {
-		utils.PrintHeaders("ServerRequest", request.Header)
-	}
+	log.Infof("[dispatch] Incoming request, method = %s, url = %s", request.Method, request.URL.String())
+	utils.PrintHeaders("ServerRequest", request.Header)
 
 	for _, handler := range proxy.handlers {
 		if handler.Handle(response, request) {
 			return
 		}
 	}
-	log.Info("handle other docker request, will forward stream")
+	log.Info("[dispatch] handle other docker request, will forward stream")
 
 	var (
 		resp *http.Response
@@ -111,17 +102,15 @@ func (proxy *DockerdProxy) dispatch(response http.ResponseWriter, request *http.
 	// do a swallow copy of request
 	newRequest := *request
 	newRequest.Host = "docker"
-	if resp, err = proxy.dockerSocket.Request(&newRequest); err != nil {
-		log.Errorln("send request to docker socket error", err)
+	if resp, err = proxy.sock.Request(&newRequest); err != nil {
+		log.Errorf("[dispatch] send request to docker socket error %v", err)
 		return
 	}
 	if resp.StatusCode != http.StatusSwitchingProtocols {
-		if debug {
-			log.Info("Type of body: ", reflect.TypeOf(resp.Body))
-		}
-		log.Info("Forward http response")
+		log.Debugf("[dispatch] Type of body: %v", reflect.TypeOf(resp.Body)) // TODO remove reflect
+		log.Debug("[dispatch] Forward http response")
 		if err := utils.Forward(resp, response); err != nil {
-			log.Errorln("forward docker socket response error", err)
+			log.Errorf("[dispatch] forward docker socket response failed %v", err)
 		}
 		return
 	}
@@ -129,7 +118,7 @@ func (proxy *DockerdProxy) dispatch(response http.ResponseWriter, request *http.
 }
 
 func linkConn(response http.ResponseWriter, resp *http.Response) {
-	log.Info("Will linked upgraded connection")
+	log.Debug("[linkConn] Will linked upgraded connection")
 	// we will hijack connection and link with dockerd connection
 	// test response writer could be hijacked
 	if hijacker, ok := response.(http.Hijacker); ok {
@@ -137,26 +126,26 @@ func linkConn(response http.ResponseWriter, resp *http.Response) {
 		if readWriteCloser, ok := resp.Body.(io.ReadWriteCloser); ok {
 			doLinkConn(response, resp, hijacker, readWriteCloser)
 		} else {
-			log.Errorln("Can't Write To ClientRequestBody")
+			log.Error("[linkConn] Can't Write To ClientRequestBody")
 			if err := utils.WriteBadGateWayResponse(
 				response,
 				utils.HTTPSimpleMessageResponseBody{
 					Message: "Can't Write To ClientRequestBody",
 				},
 			); err != nil {
-				log.Error(err)
+				log.Errorf("[linkConn] link conn failed %v", err)
 			}
 		}
-	} else {
-		log.Errorln("Can't Hijack ServerResponseWriter")
-		if err := utils.WriteBadGateWayResponse(
-			response,
-			utils.HTTPSimpleMessageResponseBody{
-				Message: "Can't Hijack ServerResponseWriter",
-			},
-		); err != nil {
-			log.Error(err)
-		}
+		return
+	}
+	log.Error("[linkConn] can't Hijack ServerResponseWriter")
+	if err := utils.WriteBadGateWayResponse(
+		response,
+		utils.HTTPSimpleMessageResponseBody{
+			Message: "Can't Hijack ServerResponseWriter",
+		},
+	); err != nil {
+		log.Errorf("[linkConn] write bad gateway response %v", err)
 	}
 }
 
@@ -169,16 +158,16 @@ func doLinkConn(response http.ResponseWriter, resp *http.Response, hijacker http
 		resp.Header,
 		nil,
 	); err != nil {
-		log.Error("Write StatusSwitchingProtocols Error", err)
+		log.Errorf("[doLinkConn] write StatusSwitchingProtocols failed %v", err)
 		return
 	}
 	var conn net.Conn
-	log.Info("Hijack server http connection")
+	log.Debug("[doLinkConn] Hijack server http connection")
 	if conn, _, err = hijacker.Hijack(); err != nil {
-		log.Error("Hijack ServerResponseWriter Error", err)
+		log.Errorf("[doLinkConn] Hijack ServerResponseWriter failed %v", err)
 		return
 	}
+	defer utils.Link(conn, readWriteCloser)
 	// link client conn and server conn
-	log.Info("Link connection")
-	utils.Link(conn, readWriteCloser)
+	log.Debug("[doLinkConn] link connection")
 }

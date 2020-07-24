@@ -1,4 +1,4 @@
-package sock
+package docker
 
 import (
 	"context"
@@ -12,17 +12,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// DockerSocket .
-type DockerSocket struct {
+var regexpHTTPScheme *regexp.Regexp = regexp.MustCompile("((http)|(https))://.*")
+
+// Socket .
+type Socket struct {
 	httpClient *http.Client
 	// simpleHttpClient utils.SimpleHTTPClient
 }
 
-var regexpHTTPScheme *regexp.Regexp = regexp.MustCompile("((http)|(https))://.*")
-
-// NewDockerSocket .
-func NewDockerSocket(dockerdSocketPath string, dialTimeout time.Duration) DockerSocket {
-	return DockerSocket{
+// NewSocket .
+func NewSocket(dockerdSocketPath string, dialTimeout time.Duration) Socket {
+	return Socket{
 		httpClient: &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
@@ -34,23 +34,23 @@ func NewDockerSocket(dockerdSocketPath string, dialTimeout time.Duration) Docker
 }
 
 // Request .
-func (sock DockerSocket) Request(rawRequest *http.Request) (*http.Response, error) {
-	return sock.DoRequest(rawRequest.Method, rawRequest.URL.String(), rawRequest.Header, rawRequest.Body)
+func (sock Socket) Request(rawRequest *http.Request) (*http.Response, error) {
+	return sock.RawRequest(rawRequest.Method, rawRequest.URL.String(), rawRequest.Header, rawRequest.Body)
 }
 
-// DoRequest .
-func (sock DockerSocket) DoRequest(method string, url string, header http.Header, body io.Reader) (clientResponse *http.Response, err error) {
+// RawRequest .
+func (sock Socket) RawRequest(method string, url string, header http.Header, body io.Reader) (clientResponse *http.Response, err error) {
 	url = processURL(url)
 
 	var clientRequest *http.Request
 	if clientRequest, err = http.NewRequest(method, url, body); err != nil {
-		log.Errorln("create HttpClientRequest error", err)
+		log.Errorf("[RawRequest] create HttpClientRequest error %v", err)
 		return nil, err
 	}
 	clientRequest.Header = header
 
 	if clientResponse, err = sock.httpClient.Do(clientRequest); err != nil {
-		log.Errorln("send HttpClientRequest error", err)
+		log.Errorf("[RawRequest] send HttpClientRequest error %v", err)
 	}
 	return
 }

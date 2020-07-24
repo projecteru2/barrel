@@ -9,7 +9,7 @@ clear_file () {
   if [ -e "$1" ];
   then
     echo "remove $1"
-    rm $1
+    rm "$1"
   else
     echo "$1 not exists"
   fi  
@@ -17,7 +17,7 @@ clear_file () {
 
 copy_file () {
   echo "copy $1 to $2"
-  cp $1 $2
+  cp "$1" "$2"
 }
 
 if [ -d "/etc/eru" ];

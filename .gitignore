@@ -2,3 +2,6 @@
 target
 dist
 cert/
+barrel
+eru-barrel
+vendor/*

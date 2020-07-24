@@ -16,20 +16,15 @@ var (
 	debug      bool
 )
 
-type writerWrapper struct {
-	writer    io.Writer
-	writeable bool
-}
-
 // Initialize .
-func Initialize(_bufferSize int, _debug bool) {
-	bufferSize = _bufferSize
-	debug = _debug
+func Initialize(bufSize int) {
+	bufferSize = bufSize
+	debug = log.GetLevel() == log.DebugLevel
 }
 
 // Forward .
 func Forward(src *http.Response, dst http.ResponseWriter) error {
-	CopyHeader(src, dst)
+	copyHeader(src, dst)
 	return copyBody(src.Body, dst)
 }
 
@@ -37,47 +32,64 @@ func Forward(src *http.Response, dst http.ResponseWriter) error {
 func Link(client io.ReadWriteCloser, server io.ReadWriteCloser) {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
+	defer wg.Wait()
 	go forwardByteStream(client, server, &wg, "from client")
 	go forwardByteStream(server, client, &wg, "from server")
-	wg.Wait()
+}
+
+// PrintHeaders .
+func PrintHeaders(label string, header http.Header) {
+	if !debug {
+		return
+	}
+	var headers []string
+	for key, values := range header {
+		for _, value := range values {
+			headers = append(headers, fmt.Sprintf("%s: %s;", key, value))
+		}
+	}
+	log.Debugf("[PrintHeaders] %v %s", label, strings.Join(headers, " "))
+}
+
+// ReadAndForward .
+func ReadAndForward(src *http.Response, dst http.ResponseWriter) ([]byte, error) {
+	copyHeader(src, dst)
+	return readAndWriteToDst(src.Body, dst, false)
+}
+
+func readToBuffer(reader io.Reader, buffer []byte, _ int) (int, error) {
+	return reader.Read(buffer)
 }
 
 func forwardByteStream(src io.Reader, dst io.WriteCloser, wg *sync.WaitGroup, label string) {
 	defer wg.Done()
 	defer dst.Close()
 
-	log.Print("Starting forward byte stream ", label)
+	log.Debugf("[forwardByteStream] Starting forward byte stream %v", label)
 	if _, err := io.Copy(dst, src); err != nil {
 		if err == io.EOF {
-			log.Print("ForwardByteStream end")
+			log.Debug("[forwardByteStream] ForwardByteStream end")
 			return
 		}
-		log.Error("ForwardByteStream end with error", err)
+		log.Errorf("[forwardByteStream] ForwardByteStream end with %v", err)
 	}
-	log.Print("End forward byte stream ", label)
+	log.Debugf("[forwardByteStream] End forward byte stream %v", label)
 }
 
-func copyBody(reader io.ReadCloser, dst http.ResponseWriter) (err error) {
+func copyBody(reader io.ReadCloser, dst io.Writer) (err error) {
 	defer reader.Close()
-	if debug {
-		log.Info("Starting copy body")
-	}
+	log.Debug("[copyBody] Starting copy body")
 	// _, err = io.Copy(dst, reader) infact we could use io.Copy here
 	// but sometimes we need to inspect byte streams so keep readAndWriteToDst for now
 	_, err = readAndWriteToDst(reader, dst, true)
-	if debug {
-		log.Info("Finish copy body")
-	}
+	log.Debug("[copyBody] Finish copy body")
 	return
 }
 
-// CopyHeader .
-func CopyHeader(src *http.Response, dst http.ResponseWriter) {
-	if debug {
-		PrintHeaders("ClientResponse", src.Header)
-		log.Info("ContentLength = ", src.ContentLength)
-		log.Info("TransferEncoding = ", src.TransferEncoding)
-	}
+func copyHeader(src *http.Response, dst http.ResponseWriter) {
+	PrintHeaders("ClientResponse", src.Header)
+	log.Debugf("[copyHeader] ContentLength = %v", src.ContentLength)
+	log.Debugf("[copyHeader] TransferEncoding = %v", src.TransferEncoding)
 	var chunked bool
 	header := dst.Header()
 	for key, values := range src.Header {
@@ -101,31 +113,14 @@ func CopyHeader(src *http.Response, dst http.ResponseWriter) {
 		header.Add("Transfer-Encoding", strings.Join(src.TransferEncoding, ","))
 	}
 	dst.WriteHeader(src.StatusCode)
-	log.Infof("copy response Header, status code = %d\n", src.StatusCode)
+	log.Infof("[copyHeader] copy response Header, status code = %d", src.StatusCode)
 	// flush header here, otherwise we can't send header out 'cause the copy body may be blocking
 	if f, ok := dst.(http.Flusher); ok {
-		log.Info("Flush header")
+		log.Debug("[copyHeader] Flush header")
 		f.Flush()
 	} else {
-		log.Warn("Can't flush header, may cause cli block")
+		log.Warn("[copyHeader] Can't flush header, may cause cli block")
 	}
-}
-
-// PrintHeaders .
-func PrintHeaders(label string, header http.Header) {
-	var headers []string
-	for key, values := range header {
-		for _, value := range values {
-			headers = append(headers, fmt.Sprintf("%s: %s;", key, value))
-		}
-	}
-	log.Info(label, " ", strings.Join(headers, " "))
-}
-
-// ReadAndForward .
-func ReadAndForward(src *http.Response, dst http.ResponseWriter) ([]byte, error) {
-	CopyHeader(src, dst)
-	return readAndWriteToDst(src.Body, dst, false)
 }
 
 func readAndWriteToDst(reader io.Reader, dst io.Writer, writeToDstOnly bool) ([]byte, error) {
@@ -139,17 +134,12 @@ func readAndWriteToDst(reader io.Reader, dst io.Writer, writeToDstOnly bool) ([]
 	for {
 		var count int
 		if count, err = readToBuffer(reader, buffer, bufferSize); err != nil && err != io.EOF {
-			if debug {
-				log.Infof("total bytes read %d\n", total)
-			}
+			log.Debugf("[readAndWriteToDst] total bytes read %d", total)
 			return nil, err
 		}
 		total += count
 		readed := buffer[:count]
-		if debug {
-			log.Infof("read bytes = %d, total = %d\n", count, total)
-			log.Infoln(readed)
-		}
+		log.Debugf("[readAndWriteToDst] read bytes = %d, total = %d", count, total)
 		if !writeToDstOnly {
 			data = append(data, readed...)
 		}
@@ -163,43 +153,18 @@ func readAndWriteToDst(reader io.Reader, dst io.Writer, writeToDstOnly bool) ([]
 	}
 }
 
-// WriteToServerResponse .
-func WriteToServerResponse(response http.ResponseWriter, statusCode int, header http.Header, body []byte) error {
-	if debug {
-		log.Info("Write ServerResponse, statusCode = ", statusCode)
-		PrintHeaders("ServerResponse", header)
-	}
-	responseHeader := response.Header()
-	for key, values := range header {
-		for _, value := range values {
-			responseHeader.Add(key, value)
-		}
-	}
-	responseHeader.Add("Content-Length", strconv.FormatInt(int64(len(body)), 10))
-	response.WriteHeader(statusCode)
-	_, err := response.Write(body)
-	if flusher, ok := response.(http.Flusher); ok {
-		log.Info("Flush")
-		flusher.Flush()
-	} else {
-		log.Info("Can't flush")
-	}
-	return err
+type writerWrapper struct {
+	writer    io.Writer
+	writeable bool
 }
 
 // when error is encountered, mark the wrapper not to write in the future
 func (wrapper *writerWrapper) write(data []byte) {
-	if debug {
-		log.Infof("bytes written count: %d", len(data))
-	}
+	log.Debugf("[write] bytes written count: %d", len(data))
 	if wrapper.writeable {
 		if _, err := wrapper.writer.Write(data); err != nil {
-			log.Errorln("write to writer error", err)
+			log.Errorf("[write] write to writer failed %v", err)
 			wrapper.writeable = false
 		}
 	}
-}
-
-func readToBuffer(reader io.Reader, buffer []byte, size int) (int, error) {
-	return reader.Read(buffer)
 }

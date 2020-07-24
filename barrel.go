@@ -1,67 +1,87 @@
 package main
 
 import (
-	"net"
+	"fmt"
 	"os"
+	"os/signal"
 	"os/user"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	etcdv3 "github.com/coreos/etcd/clientv3"
-	"github.com/pkg/errors"
 	"github.com/projectcalico/libcalico-go/lib/apiconfig"
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
-
+	"github.com/projecteru2/barrel/types"
+	"github.com/projecteru2/barrel/versioninfo"
 	minions "github.com/projecteru2/minions/lib"
 
-	"github.com/docker/go-connections/sockets"
-	"github.com/projecteru2/barrel/internal/proxy"
-	dockerProxy "github.com/projecteru2/barrel/internal/proxy"
-	"github.com/projecteru2/barrel/internal/utils"
+	dockerProxy "github.com/projecteru2/barrel/proxy"
+	"github.com/projecteru2/barrel/utils"
 	log "github.com/sirupsen/logrus"
 	cli "github.com/urfave/cli/v2"
+
+	_ "go.uber.org/automaxprocs"
 )
 
 var (
-	config            *apiconfig.CalicoAPIConfig
-	calico            calicov3.Interface
-	etcd              *etcdv3.Client
-	debug             bool
+	debug bool
+
+	config *apiconfig.CalicoAPIConfig
+	calico calicov3.Interface
+	etcd   *etcdv3.Client
+
 	dockerdSocketPath string
-	hostsFlag         string
-	tlsCertFlag       string
-	tlsKeyFlag        string
 	dockerGid         int64
-	ipPoolNames       string
 )
 
-func initialize() {
+func setupLog(l string) error {
 	if debug {
 		log.SetLevel(log.DebugLevel)
-		log.Debugln("Debug logging enabled")
+		log.Debug("[setupLog] Debug logging enabled")
 	}
-	utils.Initialize(256, debug)
-	proxy.Initialize(debug)
+	level, err := log.ParseLevel(l)
+	if err != nil {
+		return err
+	}
+	log.SetLevel(level)
 
+	formatter := &log.TextFormatter{
+		TimestampFormat: "2006-01-02 15:04:05",
+		FullTimestamp:   true,
+	}
+	log.SetFormatter(formatter)
+	log.SetOutput(os.Stdout)
+	return nil
+}
+
+func initialize(l string) error {
 	var err error
 
 	if config, err = apiconfig.LoadClientConfig(""); err != nil {
-		log.Fatalln(err)
+		return err
 	}
 	if calico, err = calicov3.New(*config); err != nil {
-		log.Fatalln(err)
+		return err
 	}
 	if etcd, err = minions.NewEtcdClient(strings.Split(config.Spec.EtcdConfig.EtcdEndpoints, ",")); err != nil {
-		log.Fatalln(err)
+		return err
 	}
+
+	return setupLog(l)
 }
 
 func main() {
+	cli.VersionPrinter = func(c *cli.Context) {
+		fmt.Print(versioninfo.VersionString())
+	}
+
 	app := &cli.App{
-		Name:   "Barrel",
-		Usage:  "Dockerd proxy for fixed IP",
-		Action: run,
+		Name:    "Barrel",
+		Usage:   "Dockerd with calico fixed IP feature",
+		Action:  run,
+		Version: versioninfo.VERSION,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:        "debug",
@@ -77,57 +97,62 @@ func main() {
 				Destination: &dockerdSocketPath,
 				EnvVars:     []string{"DOCKERD_SOCKET_PATH"},
 			},
-			&cli.StringFlag{
-				Name:        "hosts",
-				Aliases:     []string{"H"},
-				Value:       "unix:///var/run/barrel.sock",
-				Usage:       "hosts",
-				Destination: &hostsFlag,
-				EnvVars:     []string{"BARREL_HOSTS"},
+			&cli.StringSliceFlag{
+				Name:    "host",
+				Aliases: []string{"H"},
+				Value:   cli.NewStringSlice("unix:///var/run/barrel.sock"),
+				Usage:   "host, can set multiple times",
 			},
 			&cli.StringFlag{
-				Name:        "tls-cert",
-				Aliases:     []string{"TC"},
-				Usage:       "tls-cert-file-path",
-				Destination: &tlsCertFlag,
-				EnvVars:     []string{"BARREL_TLS_CERT_FILE_PATH"},
+				Name:    "tls-cert",
+				Aliases: []string{"TC"},
+				Usage:   "tls-cert-file-path",
+				EnvVars: []string{"BARREL_TLS_CERT_FILE_PATH"},
 			},
 			&cli.StringFlag{
-				Name:        "tls-key",
-				Aliases:     []string{"TK"},
-				Usage:       "tls-key-file-path",
-				Destination: &tlsKeyFlag,
-				EnvVars:     []string{"BARREL_TLS_KEY_FILE_PATH"},
+				Name:    "tls-key",
+				Aliases: []string{"TK"},
+				Usage:   "tls-key-file-path",
+				EnvVars: []string{"BARREL_TLS_KEY_FILE_PATH"},
+			},
+			&cli.IntFlag{
+				Name:    "buffer-size",
+				Usage:   "set buffer size",
+				Value:   256,
+				EnvVars: []string{"BARREL_BUFFER_SIZE"},
 			},
 			&cli.StringFlag{
-				Name:        "ip-pools",
-				Aliases:     []string{"P"},
-				Usage:       "ip pool names",
-				Destination: &ipPoolNames,
-				EnvVars:     []string{"MINIONS_IP_POOL_NAMES"},
+				Name:    "log-level",
+				Value:   "INFO",
+				Usage:   "set log level",
+				EnvVars: []string{"BARREL_LOG_LEVEL"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "ip-pool",
+				Aliases: []string{"P"},
+				Usage:   "ip pool names",
+				EnvVars: []string{"BARREL_IP_POOL_NAME"},
 			},
 		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
 	}
 }
 
 func run(c *cli.Context) (err error) {
-	initialize()
-
-	log.Printf(
-		"Hello Barrel, dockerdSocketPath = %s",
-		dockerdSocketPath,
-	)
+	utils.Initialize(c.Int("buffer-size"))
+	if err = initialize(c.String("log-level")); err != nil {
+		return err
+	}
+	log.Printf("Hello Barrel, dockerdSocketPath = %s", dockerdSocketPath)
 
 	var group *user.Group
 	if group, err = user.LookupGroup("docker"); err != nil {
 		return
 	}
-	log.Printf("the Gid of group docker is %s\n", group.Gid)
-
+	log.Printf("The Gid of group docker is %s", group.Gid)
 	if dockerGid, err = strconv.ParseInt(group.Gid, 10, 64); err != nil {
 		return
 	}
@@ -135,72 +160,21 @@ func run(c *cli.Context) (err error) {
 	config := dockerProxy.Config{
 		DockerdSocketPath: dockerdSocketPath,
 		DialTimeout:       time.Duration(2) * time.Second,
-		IPPoolNames:       strings.Split(ipPoolNames, ","),
+		IPPoolNames:       c.StringSlice("ip-pools"),
 	}
 
-	var hosts []proxy.Host
-	if hosts, err = parseHosts(hostsFlag); err != nil {
+	parser := utils.NewHostsParser(dockerGid, c.String("tls-cert"), c.String("tls-key"))
+	var hosts []types.Host
+	if hosts, err = parser.Parse(c.StringSlice("hosts")); err != nil {
 		return
 	}
-	return dockerProxy.NewProxy(config, etcd, calico).Start(hosts...)
-}
-
-const (
-	unixPrefix  = "unix://"
-	httpPrefix  = "http://"
-	httpsPrefix = "https://"
-)
-
-func parseHosts(hostsArgs string) (hosts []proxy.Host, err error) {
-	for _, value := range strings.Split(hostsArgs, ",") {
-		var host proxy.Host
-		if host, err = newHost(value); err != nil {
-			return
-		}
-		hosts = append(hosts, host)
-	}
-	return
-}
-
-func newHost(address string) (proxy.Host, error) {
-	if strings.HasPrefix(address, unixPrefix) {
-		return newUnixHost(strings.TrimPrefix(address, unixPrefix))
-	} else if strings.HasPrefix(address, httpPrefix) {
-		return newHTTPHost(strings.TrimPrefix(address, httpPrefix))
-	} else if strings.HasPrefix(address, httpsPrefix) {
-		return newHTTPSHost(strings.TrimPrefix(address, httpsPrefix))
-	}
-	return proxy.Host{}, errors.Errorf("unsupported protocol schema %s", address)
-}
-
-func newUnixHost(address string) (host proxy.Host, err error) {
-	if host.Listener, err = sockets.NewUnixSocket(address, int(dockerGid)); err != nil {
-		return
-	}
-	return
-}
-
-func newHTTPHost(address string) (host proxy.Host, err error) {
-	var listener net.Listener
-	if listener, err = net.Listen("tcp", address); err != nil {
-		return
-	}
-	host.Listener = listener
-	return
-}
-
-func newHTTPSHost(address string) (host proxy.Host, err error) {
-	if tlsCertFlag == "" || tlsKeyFlag == "" {
-		err = errors.New("can't create https host without cert and key")
-		return
-	}
-
-	var listener net.Listener
-	if listener, err = net.Listen("tcp", address); err != nil {
-		return
-	}
-	host.Listener = listener
-	host.Cert = tlsCertFlag
-	host.Key = tlsKeyFlag
-	return
+	go func() {
+		err = dockerProxy.NewProxy(config, etcd, calico).Start(hosts...)
+	}()
+	// wait for unix signals and try to GracefulStop
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
+	sig := <-sigs
+	log.Infof("[run] Get signal %v.", sig)
+	return err
 }

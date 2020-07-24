@@ -1,4 +1,4 @@
-package container
+package api
 
 import (
 	"bytes"
@@ -8,25 +8,28 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/projecteru2/barrel/internal/sock"
-	"github.com/projecteru2/barrel/internal/utils"
+	"github.com/projecteru2/barrel/sock"
+	"github.com/projecteru2/barrel/utils"
 	minions "github.com/projecteru2/minions/lib"
 	log "github.com/sirupsen/logrus"
 )
 
 var regexCreateContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/create(\?.*)?`)
 
+// ContainerCreateHandler .
 type ContainerCreateHandler struct {
-	dockerSocket  sock.DockerSocket
+	sock          sock.SocketInterface
 	minionsClient minions.Client
 	ipPoolNames   []string
 }
 
+// IPAMConfig .
 type IPAMConfig struct {
 	IPv4Address string
 	IPv6Address string
 }
 
+// ContainerCreateRequestBody .
 type ContainerCreateRequestBody struct {
 	NetworkingConfig struct {
 		EndpointsConfig map[string]struct {
@@ -35,19 +38,21 @@ type ContainerCreateRequestBody struct {
 	}
 }
 
-func NewContainerCreateHandler(dockerSocket sock.DockerSocket, minionsClient minions.Client, ipPoolNames []string) ContainerCreateHandler {
+// NewContainerCreateHandler .
+func NewContainerCreateHandler(sock sock.SocketInterface, minionsClient minions.Client, ipPoolNames []string) ContainerCreateHandler {
 	return ContainerCreateHandler{
-		dockerSocket:  dockerSocket,
+		sock:          sock,
 		minionsClient: minionsClient,
 		ipPoolNames:   ipPoolNames,
 	}
 }
 
+// Handle .
 func (handler ContainerCreateHandler) Handle(response http.ResponseWriter, request *http.Request) (handled bool) {
 	if handled = regexCreateContainer.MatchString(request.URL.Path); !handled {
 		return
 	}
-	log.Info("handle container create request")
+	log.Debug("[ContainerCreateHandler.Handle] container create request")
 
 	var (
 		err           error
@@ -55,34 +60,35 @@ func (handler ContainerCreateHandler) Handle(response http.ResponseWriter, reque
 	)
 
 	var resp *http.Response
-	if resp, err = handler.dockerSocket.DoRequest(
+	if resp, err = handler.sock.RawRequest(
 		request.Method,
 		request.URL.String(),
 		request.Header,
 		io.TeeReader(request.Body, contentWriter),
 	); err != nil {
-		log.Errorln(err)
+		log.Errorf("[ContainerCreateHandler.Handle] request failed %v", err)
 		if err := utils.WriteBadGateWayResponse(
 			response,
 			utils.HTTPSimpleMessageResponseBody{
 				Message: "send container remove request to docker socket error",
 			},
 		); err != nil {
-			log.Errorln("write response error", err)
+			log.Errorf("[ContainerCreateHandler.Handle] write response failed %v", err)
 		}
 		return
 	}
+	defer resp.Body.Close()
 
 	if err = utils.Forward(resp, response); err != nil {
-		log.Errorln(err)
+		log.Errorf("[ContainerCreateHandler.Handle] forward message failed %v", err)
 	}
 	if resp.StatusCode == http.StatusCreated {
-		log.Infoln("create container success, will try mark reserve request for ip")
+		log.Debug("[ContainerCreateHandler.Handle] create container success, will try mark reserve request for ip")
 		handler.tryMarkReserveRequest(contentWriter)
 	} else {
-		log.Infof("create container failed, status code = %d", resp.StatusCode)
+		log.Errorf("[ContainerCreateHandler.Handle] create container failed, status code = %d", resp.StatusCode)
 	}
-	return
+	return handled
 }
 
 func (handler ContainerCreateHandler) tryMarkReserveRequest(reader io.Reader) {
@@ -91,13 +97,13 @@ func (handler ContainerCreateHandler) tryMarkReserveRequest(reader io.Reader) {
 		err            error
 	)
 	if requestContent, err = ioutil.ReadAll(reader); err != nil {
-		log.Errorln("read request content error", err)
+		log.Errorf("[ContainerCreateHandler.tryMarkReserveRequest] read request failed %v", err)
 		return
 	}
-	log.Infof("request content is %s", string(requestContent))
+	log.Debugf("request content is %s", string(requestContent))
 	requestBody := ContainerCreateRequestBody{}
 	if err := json.Unmarshal(requestContent, &requestBody); err != nil {
-		log.Errorln("unmarshal request content error", err)
+		log.Errorf("[ContainerCreateHandler.tryMarkReserveRequest] unmarshal request failed %v", err)
 		return
 	}
 	for _, name := range handler.ipPoolNames {
@@ -109,24 +115,26 @@ func (handler ContainerCreateHandler) tryMarkReserveRequest(reader io.Reader) {
 }
 
 func (handler ContainerCreateHandler) markReserveRequest(config IPAMConfig) {
-	if ip := parseIP(config); ip != "" {
-		if err := handler.minionsClient.MarkReserveRequestForIP(ip); err != nil {
-			log.Errorln("markReserveRequest error", err)
-		} else {
-			log.Info("markReserveRequest success")
-		}
+	ip := parseIP(config)
+	if ip == "" {
+		return
+	}
+	if err := handler.minionsClient.MarkReserveRequestForIP(ip); err != nil {
+		log.Errorf("[ContainerCreateHandler.markReserveRequest] mark failed %v", err)
+	} else {
+		log.Debug("[ContainerCreateHandler.markReserveRequest] success")
 	}
 }
 
 func parseIP(config IPAMConfig) string {
 	if config.IPv4Address != "" {
-		log.Infof("ip is %s", config.IPv4Address)
+		log.Infof("[parseIP] ip is %s", config.IPv4Address)
 		return config.IPv4Address
 	}
 	if config.IPv6Address != "" {
-		log.Infof("ip is %s", config.IPv6Address)
+		log.Infof("[parseIP] ip is %s", config.IPv6Address)
 		return config.IPv6Address
 	}
-	log.Info("ip is empty")
+	log.Info("[parseIP] ip is empty")
 	return ""
 }
