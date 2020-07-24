@@ -61,9 +61,8 @@ func (b *_AtomicBool) cas(old bool, new bool) bool {
 	}
 	if new {
 		return atomic.CompareAndSwapInt32(&b.value, oldint, _True)
-	} else {
-		return atomic.CompareAndSwapInt32(&b.value, oldint, _False)
 	}
+	return atomic.CompareAndSwapInt32(&b.value, oldint, _False)
 }
 
 func (b *_AtomicBool) get() bool {

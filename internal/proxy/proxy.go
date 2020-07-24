@@ -22,6 +22,7 @@ var (
 	debug bool
 )
 
+// Initialize .
 func Initialize(_debug bool) {
 	debug = _debug
 }
