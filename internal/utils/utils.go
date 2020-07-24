@@ -111,21 +111,6 @@ func CopyHeader(src *http.Response, dst http.ResponseWriter) {
 	}
 }
 
-// // CopySimpleHeader .
-// func CopySimpleHeader(src SimpleHTTPResponse, dst http.ResponseWriter) {
-// 	if debug {
-// 		printSimpleHeaders(src)
-// 	}
-// 	header := dst.Header()
-// 	for key, values := range src.Header {
-// 		for _, value := range values {
-// 			header.Add(key, value)
-// 		}
-// 	}
-// 	dst.WriteHeader(src.StatusCode)
-// 	log.Infof("copy response Header, status code = %d\n", src.StatusCode)
-// }
-
 // PrintHeaders .
 func PrintHeaders(label string, header http.Header) {
 	var headers []string
@@ -136,16 +121,6 @@ func PrintHeaders(label string, header http.Header) {
 	}
 	log.Info(label, " ", strings.Join(headers, " "))
 }
-
-// func printSimpleHeaders(src SimpleHTTPResponse) {
-// 	var headers []string
-// 	for key, values := range src.Header {
-// 		for _, value := range values {
-// 			headers = append(headers, fmt.Sprintf("%s: %s;", key, value))
-// 		}
-// 	}
-// 	log.Infoln(strings.Join(headers, " "))
-// }
 
 // ReadAndForward .
 func ReadAndForward(src *http.Response, dst http.ResponseWriter) ([]byte, error) {

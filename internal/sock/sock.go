@@ -20,6 +20,7 @@ type DockerSocket struct {
 
 var regexpHTTPScheme *regexp.Regexp = regexp.MustCompile("((http)|(https))://.*")
 
+// NewDockerSocket .
 func NewDockerSocket(dockerdSocketPath string, dialTimeout time.Duration) DockerSocket {
 	return DockerSocket{
 		httpClient: &http.Client{
@@ -29,18 +30,15 @@ func NewDockerSocket(dockerdSocketPath string, dialTimeout time.Duration) Docker
 				},
 			},
 		},
-		// simpleHttpClient: utils.SimpleHTTPClient{
-		// 	ConnFactory: func() (net.Conn, error) {
-		// 		return net.DialTimeout("unix", dockerdSocketPath, dialTimeout)
-		// 	},
-		// },
 	}
 }
 
+// Request .
 func (sock DockerSocket) Request(rawRequest *http.Request) (*http.Response, error) {
 	return sock.DoRequest(rawRequest.Method, rawRequest.URL.String(), rawRequest.Header, rawRequest.Body)
 }
 
+// DoRequest .
 func (sock DockerSocket) DoRequest(method string, url string, header http.Header, body io.Reader) (clientResponse *http.Response, err error) {
 	url = processURL(url)
 
@@ -56,11 +54,6 @@ func (sock DockerSocket) DoRequest(method string, url string, header http.Header
 	}
 	return
 }
-
-// // SimpleRequest .
-// func (sock DockerSocket) SimpleRequest(simpleRequest utils.SimpleHTTPRequest) (utils.SimpleHTTPResponse, error) {
-// 	return sock.simpleHttpClient.Request(simpleRequest)
-// }
 
 func processURL(url string) string {
 	if strings.HasPrefix(url, "/") {
