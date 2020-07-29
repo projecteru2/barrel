@@ -132,7 +132,7 @@ func main() {
 				Name:    "ip-pool",
 				Aliases: []string{"P"},
 				Usage:   "ip pool names",
-				EnvVars: []string{"BARREL_IP_POOL_NAME"},
+				EnvVars: []string{"BARREL_IP_POOL_NAMES"},
 			},
 		},
 	}
@@ -158,15 +158,21 @@ func run(c *cli.Context) (err error) {
 		return
 	}
 
+	hostEnvVars := c.StringSlice("host")
+	ipPoolNameEnvVars := c.StringSlice("ip-pool")
+
+	log.Printf("hostEnvVars = %v", hostEnvVars)
+	log.Printf("ipPoolNameEnvVars = %v", ipPoolNameEnvVars)
+
 	config := dockerProxy.Config{
 		DockerdSocketPath: dockerdSocketPath,
 		DialTimeout:       time.Duration(2) * time.Second,
-		IPPoolNames:       c.StringSlice("ip-pools"),
+		IPPoolNames:       ipPoolNameEnvVars,
 	}
 
 	parser := utils.NewHostsParser(dockerGid, c.String("tls-cert"), c.String("tls-key"))
 	var hosts []types.Host
-	if hosts, err = parser.Parse(c.StringSlice("host")); err != nil {
+	if hosts, err = parser.Parse(hostEnvVars); err != nil {
 		return
 	}
 	go func() {

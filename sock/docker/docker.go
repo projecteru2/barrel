@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"io"
 	"net"
 	"net/http"
 	"regexp"
@@ -17,7 +16,6 @@ var regexpHTTPScheme *regexp.Regexp = regexp.MustCompile("((http)|(https))://.*"
 // Socket .
 type Socket struct {
 	httpClient *http.Client
-	// simpleHttpClient utils.SimpleHTTPClient
 }
 
 // NewSocket .
@@ -34,23 +32,18 @@ func NewSocket(dockerdSocketPath string, dialTimeout time.Duration) Socket {
 }
 
 // Request .
-func (sock Socket) Request(rawRequest *http.Request) (*http.Response, error) {
-	return sock.RawRequest(rawRequest.Method, rawRequest.URL.String(), rawRequest.Header, rawRequest.Body)
-}
-
-// RawRequest .
-func (sock Socket) RawRequest(method string, url string, header http.Header, body io.Reader) (clientResponse *http.Response, err error) {
-	url = processURL(url)
-
+func (sock Socket) Request(rawRequest *http.Request) (clientResponse *http.Response, err error) {
 	var clientRequest *http.Request
-	if clientRequest, err = http.NewRequest(method, url, body); err != nil {
-		log.Errorf("[RawRequest] create HttpClientRequest error %v", err)
+	if clientRequest, err = http.NewRequest(rawRequest.Method, processURL(rawRequest.URL.String()), rawRequest.Body); err != nil {
+		log.Errorf("[RawRequest] create HttpClientRequest failed %v", err)
 		return nil, err
 	}
-	clientRequest.Header = header
+	clientRequest.Header = rawRequest.Header
+	clientRequest.ContentLength = rawRequest.ContentLength
+	clientRequest.TransferEncoding = rawRequest.TransferEncoding
 
 	if clientResponse, err = sock.httpClient.Do(clientRequest); err != nil {
-		log.Errorf("[RawRequest] send HttpClientRequest error %v", err)
+		log.Errorf("[RawRequest] send HttpClientRequest failed %v", err)
 	}
 	return
 }
