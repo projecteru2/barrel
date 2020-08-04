@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,6 +28,18 @@ func Initialize(bufSize int) {
 func Forward(src *http.Response, dst http.ResponseWriter) error {
 	copyHeader(src, dst)
 	return copyBody(src.Body, dst)
+}
+
+// ForwardAndRead .
+func ForwardAndRead(src *http.Response, dst http.ResponseWriter) (body []byte, err error) {
+	copyHeader(src, dst)
+	buffer := bytes.NewBuffer(nil)
+	reader := io.TeeReader(src.Body, buffer)
+	if err = copyBody(ioutil.NopCloser(reader), dst); err != nil {
+		return
+	}
+	body, err = ioutil.ReadAll(buffer)
+	return
 }
 
 // Link .
