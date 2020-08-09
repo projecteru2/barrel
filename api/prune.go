@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"regexp"
 
+	"github.com/projecteru2/barrel/ipam"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/utils"
-	minions "github.com/projecteru2/minions/lib"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,8 +15,8 @@ var regexPruneContainers *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/
 
 // ContainerPruneHandle .
 type ContainerPruneHandle struct {
-	sock          sock.SocketInterface
-	minionsClient minions.Client
+	sock sock.SocketInterface
+	ipam ipam.IPAM
 }
 
 // ContainerPruneResult .
@@ -25,16 +25,17 @@ type ContainerPruneResult struct {
 }
 
 // NewContainerPruneHandle .
-func NewContainerPruneHandle(sock sock.SocketInterface, minionsClient minions.Client) ContainerPruneHandle {
+func NewContainerPruneHandle(sock sock.SocketInterface, ipam ipam.IPAM) ContainerPruneHandle {
 	return ContainerPruneHandle{
-		sock:          sock,
-		minionsClient: minionsClient,
+		sock: sock,
+		ipam: ipam,
 	}
 }
 
 // Handle .
-func (handler ContainerPruneHandle) Handle(response http.ResponseWriter, request *http.Request) (handled bool) {
-	if handled = handler.match(request); !handled {
+func (handler ContainerPruneHandle) Handle(ctx utils.HandleContext, response http.ResponseWriter, request *http.Request) {
+	if !handler.match(request) {
+		ctx.Next()
 		return
 	}
 	log.Debug("[ContainerPruneHandle.Handle] container prune request")
@@ -77,7 +78,6 @@ func (handler ContainerPruneHandle) Handle(response http.ResponseWriter, request
 	if err = utils.Forward(resp, response); err != nil {
 		log.Errorf("[ContainerPruneHandle.Handle] forward error %v", err)
 	}
-	return handled
 }
 
 func (handler ContainerPruneHandle) match(request *http.Request) bool {
@@ -87,7 +87,7 @@ func (handler ContainerPruneHandle) match(request *http.Request) bool {
 func (handler ContainerPruneHandle) releaseReservedIPs(containerIDs []string) {
 	for _, fullID := range containerIDs {
 		log.Debugf("[ContainerPruneHandle.releaseReservedIPs] releasing reserved IP by tied container(%s)", fullID)
-		if err := handler.minionsClient.ReleaseReservedIPByTiedContainerIDIfIdle(fullID); err != nil {
+		if err := handler.ipam.ReleaseContainer(fullID); err != nil {
 			log.Errorf("[ContainerPruneHandle.releaseReservedIPs] release reserved IP by tied container(%s) error", fullID)
 			log.Errorf("[ContainerPruneHandle.releaseReservedIPs] release IP failed %v", err)
 		} else {

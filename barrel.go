@@ -1,21 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"os/user"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
-	etcdv3 "github.com/coreos/etcd/clientv3"
 	"github.com/projectcalico/libcalico-go/lib/apiconfig"
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
-	"github.com/projecteru2/barrel/types"
+	"github.com/projecteru2/barrel/common"
 	"github.com/projecteru2/barrel/versioninfo"
-	minions "github.com/projecteru2/minions/lib"
+	barrelEtcdMeta "github.com/projecteru2/minions/barrel/etcd"
 
 	dockerProxy "github.com/projecteru2/barrel/proxy"
 	"github.com/projecteru2/barrel/utils"
@@ -26,14 +25,11 @@ import (
 )
 
 var (
-	debug bool
-
-	config *apiconfig.CalicoAPIConfig
-	calico calicov3.Interface
-	etcd   *etcdv3.Client
-
+	debug             bool
 	dockerdSocketPath string
-	dockerGid         int64
+	config            *apiconfig.CalicoAPIConfig
+	calico            calicov3.Interface
+	etcd              *barrelEtcdMeta.Etcd
 )
 
 func setupLog(l string) error {
@@ -65,11 +61,66 @@ func initialize(l string) error {
 	if calico, err = calicov3.New(*config); err != nil {
 		return err
 	}
-	if etcd, err = minions.NewEtcdClient(strings.Split(config.Spec.EtcdConfig.EtcdEndpoints, ",")); err != nil {
+	if etcd, err = barrelEtcdMeta.NewEtcdClient(context.Background(), *config); err != nil {
 		return err
 	}
 
 	return setupLog(l)
+}
+
+func run(c *cli.Context) (err error) {
+	var (
+		dockerdSocketPath string
+		dockerGid         int64
+	)
+	utils.Initialize(c.Int("buffer-size"))
+	if err = initialize(c.String("log-level")); err != nil {
+		return err
+	}
+	log.Printf("Hello Barrel, dockerdSocketPath = %s", dockerdSocketPath)
+
+	var group *user.Group
+	if group, err = user.LookupGroup("docker"); err != nil {
+		return
+	}
+	log.Printf("The Gid of group docker is %s", group.Gid)
+	if dockerGid, err = strconv.ParseInt(group.Gid, 10, 64); err != nil {
+		return
+	}
+
+	hostEnvVars := c.StringSlice("host")
+	driverEnvVar := c.String("driver")
+
+	log.Printf("hostEnvVars = %v", hostEnvVars)
+	log.Printf("driverEnvVar = %v", driverEnvVar)
+
+	config := dockerProxy.Config{
+		DockerdSocketPath: dockerdSocketPath,
+		DialTimeout:       time.Duration(2) * time.Second,
+		Driver:            driverEnvVar,
+		Hosts:             hostEnvVars,
+		CertFile:          c.String("tls-cert"),
+		KeyFile:           c.String("tls-key"),
+		DockerGid:         dockerGid,
+	}
+
+	var proxy dockerProxy.DisposableService
+	if proxy, err = dockerProxy.NewProxy(config, etcd, calico); err != nil {
+		return
+	}
+
+	go func() {
+		if err = proxy.Service(); err != nil && err != common.ErrServiceShutdown {
+			log.Errorf("[run] Proxy end with error, cause = %v.", err)
+		}
+	}()
+
+	// wait for unix signals and try to GracefulStop
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
+	sig := <-sigs
+	log.Infof("[run] Get signal %v.", sig)
+	return proxy.Dispose()
 }
 
 func main() {
@@ -140,48 +191,4 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func run(c *cli.Context) (err error) {
-	utils.Initialize(c.Int("buffer-size"))
-	if err = initialize(c.String("log-level")); err != nil {
-		return err
-	}
-	log.Printf("Hello Barrel, dockerdSocketPath = %s", dockerdSocketPath)
-
-	var group *user.Group
-	if group, err = user.LookupGroup("docker"); err != nil {
-		return
-	}
-	log.Printf("The Gid of group docker is %s", group.Gid)
-	if dockerGid, err = strconv.ParseInt(group.Gid, 10, 64); err != nil {
-		return
-	}
-
-	hostEnvVars := c.StringSlice("host")
-	ipPoolNameEnvVars := c.StringSlice("ip-pool")
-
-	log.Printf("hostEnvVars = %v", hostEnvVars)
-	log.Printf("ipPoolNameEnvVars = %v", ipPoolNameEnvVars)
-
-	config := dockerProxy.Config{
-		DockerdSocketPath: dockerdSocketPath,
-		DialTimeout:       time.Duration(2) * time.Second,
-		IPPoolNames:       ipPoolNameEnvVars,
-	}
-
-	parser := utils.NewHostsParser(dockerGid, c.String("tls-cert"), c.String("tls-key"))
-	var hosts []types.Host
-	if hosts, err = parser.Parse(hostEnvVars); err != nil {
-		return
-	}
-	go func() {
-		err = dockerProxy.NewProxy(config, etcd, calico).Start(hosts...)
-	}()
-	// wait for unix signals and try to GracefulStop
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGHUP, syscall.SIGTERM)
-	sig := <-sigs
-	log.Infof("[run] Get signal %v.", sig)
-	return err
 }
