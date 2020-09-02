@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/juju/errors"
+	"github.com/pkg/errors"
 	"github.com/projecteru2/barrel/common"
+	"github.com/projecteru2/barrel/ipam"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/utils"
-	minions "github.com/projecteru2/minions/lib"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,42 +18,43 @@ var regexDeleteContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/
 type ContainerDeleteHandler struct {
 	inspectHandler ContainerInspectHandler
 	sock           sock.SocketInterface
-	minionsClient  minions.Client
+	ipam           ipam.IPAM
 }
 
-// ContainerDeleteRequest .
-type ContainerDeleteRequest struct {
-	Version  string
-	IDOrName string
+type containerDeleteRequest struct {
+	version    string
+	identifier string
 }
 
 // NewContainerDeleteHandler .
-func NewContainerDeleteHandler(sock sock.SocketInterface, minionsClient minions.Client) ContainerDeleteHandler {
+func NewContainerDeleteHandler(sock sock.SocketInterface, ipam ipam.IPAM) ContainerDeleteHandler {
 	return ContainerDeleteHandler{
 		sock:           sock,
-		minionsClient:  minionsClient,
+		ipam:           ipam,
 		inspectHandler: ContainerInspectHandler{sock: sock},
 	}
 }
 
 // Handle .
-func (handler ContainerDeleteHandler) Handle(response http.ResponseWriter, request *http.Request) (handled bool) {
+func (handler ContainerDeleteHandler) Handle(ctx utils.HandleContext, response http.ResponseWriter, request *http.Request) {
 	var (
-		containerDeleteRequest ContainerDeleteRequest
+		containerDeleteRequest containerDeleteRequest
+		matched                bool
 	)
-	if containerDeleteRequest, handled = handler.match(request); !handled {
+	if containerDeleteRequest, matched = handler.match(request); !matched {
+		ctx.Next()
 		return
 	}
 	log.Debug("[ContainerDeleteHandler.Handle] container remove request")
 
 	var (
-		err    error
-		fullID string
+		err           error
+		containerInfo ContainerInspectResult
 	)
 
-	if fullID, err = handler.inspectHandler.GetFullContainerID(
-		containerDeleteRequest.IDOrName,
-		containerDeleteRequest.Version,
+	if containerInfo, err = handler.inspectHandler.Inspect(
+		containerDeleteRequest.identifier,
+		containerDeleteRequest.version,
 	); err != nil {
 		log.Errorf("[ContainerDeleteHandler.Handle] get full container id failed %v", err)
 		if rootErr := errors.Cause(err); rootErr == common.ErrContainerNotExists {
@@ -80,13 +81,12 @@ func (handler ContainerDeleteHandler) Handle(response http.ResponseWriter, reque
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotFound {
-		go handler.releaseReservedIP(containerDeleteRequest.IDOrName, fullID)
+		go handler.releaseReservedIP(containerDeleteRequest.identifier, containerInfo.ID)
 	}
 
 	if err = utils.Forward(resp, response); err != nil {
 		log.Errorf("[ContainerDeleteHandler.Handle] forward failed %v", err)
 	}
-	return handled
 }
 
 func (handler ContainerDeleteHandler) releaseReservedIP(idOrName string, fullID string) {
@@ -104,20 +104,20 @@ func (handler ContainerDeleteHandler) releaseReservedIP(idOrName string, fullID 
 }
 
 func (handler ContainerDeleteHandler) releaseReservedIPByTiedContainerIDIfIdle(fullID string) {
-	if err := handler.minionsClient.ReleaseReservedIPByTiedContainerIDIfIdle(fullID); err != nil {
+	if err := handler.ipam.ReleaseContainer(fullID); err != nil {
 		log.Errorf("[ContainerDeleteHandler.releaseReservedIPByTiedContainerIDIfIdle] release reserved IP by tied container(%s) error", fullID)
 		log.Errorf("[ContainerDeleteHandler.releaseReservedIPByTiedContainerIDIfIdle] release ip failed %v", err)
 	}
 }
 
-func (handler ContainerDeleteHandler) match(request *http.Request) (ContainerDeleteRequest, bool) {
-	req := ContainerDeleteRequest{}
+func (handler ContainerDeleteHandler) match(request *http.Request) (containerDeleteRequest, bool) {
+	req := containerDeleteRequest{}
 	if request.Method == http.MethodDelete {
 		subMatches := regexDeleteContainer.FindStringSubmatch(request.URL.Path)
 		if len(subMatches) > 2 {
-			req.Version = subMatches[1]
-			req.IDOrName = subMatches[2]
-			log.Debugf("[ContainerDeleteHandler.match] docker api version = %s", req.Version)
+			req.version = subMatches[1]
+			req.identifier = subMatches[2]
+			log.Debugf("[ContainerDeleteHandler.match] docker api version = %s", req.version)
 			return req, true
 		}
 	}
