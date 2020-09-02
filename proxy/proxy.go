@@ -7,15 +7,15 @@ import (
 	"reflect"
 	"time"
 
-	etcdv3 "github.com/coreos/etcd/clientv3"
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
 	"github.com/projecteru2/barrel/api"
 	"github.com/projecteru2/barrel/common"
+	"github.com/projecteru2/barrel/ipam"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/sock/docker"
-	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
-	minions "github.com/projecteru2/minions/lib"
+	barrelEtcdMeta "github.com/projecteru2/minions/barrel/etcd"
+	calicoIPAM "github.com/projecteru2/minions/driver/calico/ipam"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -23,76 +23,51 @@ import (
 type Config struct {
 	DockerdSocketPath string
 	DialTimeout       time.Duration
-	IPPoolNames       []string
-}
-
-// DockerdProxy .
-type DockerdProxy struct {
-	mux      *http.ServeMux
-	handlers []types.RequestHandler
-	sock     sock.SocketInterface
+	Driver            string
+	DockerGid         int64
+	Hosts             []string
+	CertFile          string
+	KeyFile           string
 }
 
 // NewProxy .
-func NewProxy(config Config, etcdV3 *etcdv3.Client, calicoV3 calicov3.Interface) *DockerdProxy {
-	proxy := new(DockerdProxy)
-	proxy.mux = http.NewServeMux()
-	proxy.mux.HandleFunc("/", proxy.dispatch)
-	minionsClient := minions.NewClient(etcdV3, calicoV3)
-	// TODO only docker socket support
+func NewProxy(config Config, etcd *barrelEtcdMeta.Etcd, calicoV3 calicov3.Interface) (DisposableService, error) {
+	ipam := ipam.IPAM{CalicoIPAMDriver: *calicoIPAM.NewCalicoIPAM(calicoV3), BarrelEtcd: etcd, Driver: config.Driver}
 	dockerSocket := docker.NewSocket(config.DockerdSocketPath, config.DialTimeout)
-	proxy.sock = dockerSocket
-	proxy.addHandler(api.NewContainerDeleteHandler(dockerSocket, minionsClient))
-	proxy.addHandler(api.NewContainerPruneHandle(dockerSocket, minionsClient))
-	proxy.addHandler(api.NewContainerCreateHandler(dockerSocket, minionsClient, config.IPPoolNames))
-	return proxy
+	return createService(config, utils.ComposeHandlers([]utils.RequestHandler{
+		api.NewContainerDeleteHandler(dockerSocket, ipam),
+		api.NewContainerPruneHandle(dockerSocket, ipam),
+		api.NewContainerCreateHandler(dockerSocket, ipam),
+		api.NewNetworkConnectHandler(dockerSocket, ipam),
+		api.NewNetworkDisconnectHandler(dockerSocket, ipam),
+		&forwardProxy{dockerSocket},
+	}...))
 }
 
-func (proxy *DockerdProxy) addHandler(handler types.RequestHandler) {
-	proxy.handlers = append(proxy.handlers, handler)
-}
-
-// Start will block
-func (proxy *DockerdProxy) Start(host ...types.Host) error {
-	switch len(host) {
+func createService(config Config, handler http.Handler) (DisposableService, error) {
+	launcher := HostLauncher{
+		dockerGid: config.DockerGid,
+		certFile:  config.CertFile,
+		keyFile:   config.KeyFile,
+		handler:   handler,
+	}
+	switch len(config.Hosts) {
 	case 0:
-		return common.ErrNoListener
+		return nil, common.ErrNoHosts
 	case 1:
-		return proxy.startOnHost(host[0])
+		return launcher.Launch(config.Hosts[0])
 	default:
-		return proxy.startOnHosts(host)
+		return launcher.LaunchMultiple(config.Hosts...)
 	}
 }
 
-// StartOnListeners .
-func (proxy *DockerdProxy) startOnHosts(hosts []types.Host) error {
-	return startHostGroup(proxy.mux, hosts)
+type forwardProxy struct {
+	sock sock.SocketInterface
 }
 
-func (proxy *DockerdProxy) startOnHost(host types.Host) (err error) {
-	addr := host.Listener.Addr().String()
-	log.Infof("[startOnHost] Starting proxy at %s", addr)
-	server := http.Server{
-		Addr:    addr,
-		Handler: proxy.mux,
-	}
-	if host.Cert != "" {
-		return server.ServeTLS(host.Listener, host.Cert, host.Key)
-	}
-	return server.Serve(host.Listener)
-}
-
-func (proxy *DockerdProxy) dispatch(response http.ResponseWriter, request *http.Request) {
-	log.Infof("[dispatch] Incoming request, method = %s, url = %s", request.Method, request.URL.String())
-	utils.PrintHeaders("ServerRequest", request.Header)
-
-	for _, handler := range proxy.handlers {
-		if handler.Handle(response, request) {
-			return
-		}
-	}
-	log.Info("[dispatch] handle other docker request, will forward stream")
-
+// Handle .
+func (proxy *forwardProxy) Handle(ctx utils.HandleContext, response http.ResponseWriter, request *http.Request) {
+	log.Info("[Handle] handle other docker request, will forward stream")
 	var (
 		resp *http.Response
 		err  error
