@@ -1,14 +1,16 @@
 package common
 
-import "github.com/juju/errors"
+import "github.com/pkg/errors"
 
 var (
+	// ErrNoHosts .
+	ErrNoHosts = errors.New("can't create proxy without hosts")
 	// ErrCertAndKeyMissing .
 	ErrCertAndKeyMissing = errors.New("can't create https host without cert and key")
-	// ErrServerStop .
-	ErrServerStop = errors.New("Server Stops")
+	// ErrServiceShutdown .
+	ErrServiceShutdown = errors.New("Service shutdown")
 	// ErrNoListener .
-	ErrNoListener = errors.New("no listener is provided")
+	ErrNoListener = errors.New("No listener is provided")
 	// ErrNoContainerIdent .
 	ErrNoContainerIdent = errors.New("container id or name must not be null")
 	// ErrWrongAPIVersion .
