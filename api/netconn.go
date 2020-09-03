@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"io/ioutil"
 	"net/http"
 	"regexp"
@@ -102,7 +101,7 @@ func (handler NetworkConnectHandler) Handle(ctx utils.HandleContext, res http.Re
 			return
 		}
 	}
-	if clientResp, err = handler.requestDockerd(req, body); err != nil {
+	if clientResp, err = requestDockerd(handler.sock, req, body); err != nil {
 		handler.writeErrorResponse(res, err, "request dockerd socket")
 		if allocated {
 			handler.ipam.ReleaseReservedAddress(fixedIPAddress)
@@ -113,7 +112,7 @@ func (handler NetworkConnectHandler) Handle(ctx utils.HandleContext, res http.Re
 }
 
 func (handler NetworkConnectHandler) match(request *http.Request) (networkConnectRequest, bool) {
-	if request.Method == http.MethodDelete {
+	if request.Method == http.MethodPost {
 		subMatches := regexNetworkConnect.FindStringSubmatch(request.URL.Path)
 		if len(subMatches) > 2 {
 			networkConnectRequest := networkConnectRequest{}
@@ -152,15 +151,6 @@ func (handler NetworkConnectHandler) getContainerInfo(
 		return containerInfo, errors.New("Parse container identifier error")
 	}
 	return inspect(containerIdentifier)
-}
-
-func (handler NetworkConnectHandler) requestDockerd(req *http.Request, body []byte) (clientResp *http.Response, err error) {
-	var (
-		clientReq http.Request = *req
-	)
-	clientReq.ContentLength = int64(len(body))
-	clientReq.Body = ioutil.NopCloser(bytes.NewReader(body))
-	return handler.sock.Request(&clientReq)
 }
 
 func (handler NetworkConnectHandler) checkOrRequestFixedIP(

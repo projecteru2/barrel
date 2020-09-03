@@ -86,7 +86,7 @@ func (handler NetworkDisconnectHandler) Handle(ctx utils.HandleContext, res http
 		return
 	}
 	var resp *http.Response
-	if resp, err = handler.sock.Request(req); err != nil {
+	if resp, err = requestDockerd(handler.sock, req, body); err != nil {
 		handler.writeErrorResponse(res, err, "request dockerd socket")
 		return
 	}
@@ -142,7 +142,7 @@ func (handler NetworkDisconnectHandler) releaseReservedAddresses(containerID str
 
 func (handler NetworkDisconnectHandler) match(request *http.Request) (networkDisconnectRequest, bool) {
 	req := networkDisconnectRequest{}
-	if request.Method == http.MethodDelete {
+	if request.Method == http.MethodPost {
 		subMatches := regexNetworkDisconnect.FindStringSubmatch(request.URL.Path)
 		if len(subMatches) > 2 {
 			req.version = subMatches[1]

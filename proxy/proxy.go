@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"time"
 
+	dockerClient "github.com/docker/docker/client"
+	"github.com/pkg/errors"
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
 	"github.com/projecteru2/barrel/api"
 	"github.com/projecteru2/barrel/common"
@@ -32,7 +34,19 @@ type Config struct {
 
 // NewProxy .
 func NewProxy(config Config, etcd *barrelEtcdMeta.Etcd, calicoV3 calicov3.Interface) (DisposableService, error) {
-	ipam := ipam.IPAM{CalicoIPAMDriver: *calicoIPAM.NewCalicoIPAM(calicoV3), BarrelEtcd: etcd, Driver: config.Driver}
+	var (
+		dockerCli *dockerClient.Client
+		err       error
+	)
+	if dockerCli, err = dockerClient.NewClientWithOpts(dockerClient.WithHost("unix://" + config.DockerdSocketPath)); err != nil {
+		return nil, errors.Wrap(err, "Error while attempting to instantiate docker client from env")
+	}
+	ipam := ipam.IPAM{
+		CalicoIPAMDriver: *calicoIPAM.NewCalicoIPAM(calicoV3),
+		BarrelEtcd:       etcd,
+		Driver:           config.Driver,
+		DockerClient:     dockerCli,
+	}
 	dockerSocket := docker.NewSocket(config.DockerdSocketPath, config.DialTimeout)
 	return createService(config, utils.ComposeHandlers([]utils.RequestHandler{
 		api.NewContainerDeleteHandler(dockerSocket, ipam),

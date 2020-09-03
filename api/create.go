@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -78,13 +77,18 @@ func (handler ContainerCreateHandler) Handle(ctx utils.HandleContext, res http.R
 	}
 	if fixedIPAddress, err = handler.checkAndRequestFixedIP(bodyObject); err != nil {
 		handler.writeErrorResponse(res, err, "check and request fixed-ip")
+		if len(fixedIPAddress) > 0 {
+			for _, address := range fixedIPAddress {
+				handler.ipam.ReleaseReservedAddress(address)
+			}
+		}
 		return
 	}
 	if body, err = utils.Marshal(bodyObject.Any()); err != nil {
 		handler.writeErrorResponse(res, err, "marshal server request")
 		return
 	}
-	if clientResp, err = handler.requestDockerd(req, body); err != nil {
+	if clientResp, err = requestDockerd(handler.sock, req, body); err != nil {
 		handler.writeErrorResponse(res, err, "request dockerd socket")
 		return
 	}
@@ -103,17 +107,9 @@ func (handler ContainerCreateHandler) writeErrorResponse(res http.ResponseWriter
 	}
 }
 
-func (handler ContainerCreateHandler) requestDockerd(req *http.Request, body []byte) (clientResp *http.Response, err error) {
-	var (
-		clientReq http.Request = *req
-	)
-	clientReq.ContentLength = int64(len(body))
-	clientReq.Body = ioutil.NopCloser(bytes.NewReader(body))
-	return handler.sock.Request(&clientReq)
-}
-
 func isCustomNetwork(networkMode string) bool {
 	return networkMode != "" &&
+		networkMode != "default" &&
 		networkMode != "bridge" &&
 		networkMode != "host" &&
 		networkMode != "none" &&
@@ -124,7 +120,6 @@ func (handler ContainerCreateHandler) checkAndRequestFixedIP(body utils.Object) 
 	var (
 		fixedIP     bool
 		networkMode string
-		ipamConfigs map[string]utils.Object
 		addresses   []minionsTypes.ReservedAddress
 		err         error
 	)
@@ -134,37 +129,21 @@ func (handler ContainerCreateHandler) checkAndRequestFixedIP(body utils.Object) 
 	if !isCustomNetwork(networkMode) {
 		return nil, nil
 	}
-	if ipamConfigs, err = handler.getIPAMConfigs(networkMode, body); err != nil {
-		return nil, err
-	}
-	for networkName, ipamConfig := range ipamConfigs {
-		var (
-			allocated bool
-			address   minionsTypes.ReservedAddress
-		)
-		if allocated, address, err = handler.requestFixedIP(networkName, ipamConfig); err != nil {
-			return nil, err
-		}
-		if allocated {
-			addresses = append(addresses, address)
-		}
+	if addresses, err = handler.visitNetworkConfigAndAllocateAddress(networkMode, body); err != nil {
+		return addresses, err
 	}
 	return addresses, nil
 }
 
-func (handler ContainerCreateHandler) requestFixedIP(networkName string, ipamConfig utils.Object) (bool, minionsTypes.ReservedAddress, error) {
+func (handler ContainerCreateHandler) requestFixedIP(
+	pools []*minionsTypes.Pool,
+	ipamConfig utils.Object,
+) (bool, minionsTypes.ReservedAddress, error) {
 	var (
 		ipv4Address string
 		ipv6Address string
 		err         error
-		pools       []*minionsTypes.Pool
 	)
-	if pools, err = handler.ipam.GetIPPoolsByNetworkName(networkName); err != nil {
-		if err == ipam.ErrUnsupervisedNetwork {
-			return false, minionsTypes.ReservedAddress{}, nil
-		}
-		return false, minionsTypes.ReservedAddress{}, err
-	}
 	if ipv4Address, err = getStringMember(ipamConfig, "IPv4Address"); err != nil {
 		return false, minionsTypes.ReservedAddress{}, err
 	}
@@ -221,12 +200,15 @@ func (handler ContainerCreateHandler) checkFixedIPLabelAndNetworkMode(body utils
 	return true, networkMode, nil
 }
 
-func (handler ContainerCreateHandler) getIPAMConfigs(networkMode string, body utils.Object) (map[string]utils.Object, error) {
+func (handler ContainerCreateHandler) visitNetworkConfigAndAllocateAddress(
+	networkMode string,
+	body utils.Object,
+) ([]minionsTypes.ReservedAddress, error) {
 	var (
 		networkConfig   utils.Object
 		endpointsConfig utils.Object
-		result          = make(map[string]utils.Object)
 		err             error
+		addresses       []minionsTypes.ReservedAddress
 	)
 	if networkConfig, err = ensureObjectMember(body, "NetworkingConfig"); err != nil {
 		return nil, err
@@ -239,15 +221,34 @@ func (handler ContainerCreateHandler) getIPAMConfigs(networkMode string, body ut
 		networkNames = []string{networkMode}
 	}
 	for _, networkName := range networkNames {
-		if endpointConfig, err := ensureObjectMember(endpointsConfig, networkName); err != nil {
-			return nil, err
-		} else if ipamConfig, err := ensureObjectMember(endpointConfig, "IPAMConfig"); err != nil {
-			return nil, err
-		} else {
-			result[networkName] = ipamConfig
+		var (
+			pools          []*minionsTypes.Pool
+			endpointConfig utils.Object
+			ipamConfig     utils.Object
+			address        minionsTypes.ReservedAddress
+			allocated      bool
+		)
+		if !isCustomNetwork(networkName) {
+			continue
+		}
+		if pools, err = handler.ipam.GetIPPoolsByNetworkName(networkName); err != nil {
+			if err == ipam.ErrUnsupervisedNetwork {
+				continue
+			}
+			return addresses, err
+		}
+		if endpointConfig, err = ensureObjectMember(endpointsConfig, networkName); err != nil {
+			return addresses, err
+		} else if ipamConfig, err = ensureObjectMember(endpointConfig, "IPAMConfig"); err != nil {
+			return addresses, err
+		}
+		if allocated, address, err = handler.requestFixedIP(pools, ipamConfig); err != nil {
+			return addresses, err
+		} else if allocated {
+			addresses = append(addresses, address)
 		}
 	}
-	return result, nil
+	return addresses, nil
 }
 
 func (handler ContainerCreateHandler) writeServerResponse(
