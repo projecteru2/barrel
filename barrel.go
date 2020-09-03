@@ -25,11 +25,10 @@ import (
 )
 
 var (
-	debug             bool
-	dockerdSocketPath string
-	config            *apiconfig.CalicoAPIConfig
-	calico            calicov3.Interface
-	etcd              *barrelEtcdMeta.Etcd
+	debug  bool
+	config *apiconfig.CalicoAPIConfig
+	calico calicov3.Interface
+	etcd   *barrelEtcdMeta.Etcd
 )
 
 func setupLog(l string) error {
@@ -70,7 +69,7 @@ func initialize(l string) error {
 
 func run(c *cli.Context) (err error) {
 	var (
-		dockerdSocketPath string
+		dockerdSocketPath = c.String("dockerd-socket")
 		dockerGid         int64
 	)
 	utils.Initialize(c.Int("buffer-size"))
@@ -141,17 +140,16 @@ func main() {
 				EnvVars:     []string{"BARREL_DEBUG"},
 			},
 			&cli.StringFlag{
-				Name:        "dockerd-socket",
-				Aliases:     []string{"D"},
-				Value:       "/var/run/docker.sock",
-				Usage:       "dockerd socket",
-				Destination: &dockerdSocketPath,
-				EnvVars:     []string{"DOCKERD_SOCKET_PATH"},
+				Name:    "dockerd-socket",
+				Aliases: []string{"D"},
+				Value:   "/var/run/dockerd.sock",
+				Usage:   "dockerd socket",
+				EnvVars: []string{"DOCKERD_SOCKET_PATH"},
 			},
 			&cli.StringSliceFlag{
 				Name:    "host",
 				Aliases: []string{"H"},
-				Value:   cli.NewStringSlice("unix:///var/run/barrel.sock"),
+				Value:   cli.NewStringSlice("unix:///var/run/docker.sock"),
 				Usage:   "host, can set multiple times",
 				EnvVars: []string{"BARREL_HOSTS"},
 			},
@@ -179,11 +177,12 @@ func main() {
 				Usage:   "set log level",
 				EnvVars: []string{"BARREL_LOG_LEVEL"},
 			},
-			&cli.StringSliceFlag{
-				Name:    "ip-pool",
-				Aliases: []string{"P"},
-				Usage:   "ip pool names",
-				EnvVars: []string{"BARREL_IP_POOL_NAMES"},
+			&cli.StringFlag{
+				Name:    "driver",
+				Aliases: []string{"ND"},
+				Usage:   "network plugin driver name",
+				Value:   "calico",
+				EnvVars: []string{"BARREL_DRIVER"},
 			},
 		},
 	}
