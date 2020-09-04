@@ -1,9 +1,13 @@
 package api
 
 import (
+	"bytes"
+	"io/ioutil"
+	"net/http"
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/utils"
 )
 
@@ -52,4 +56,13 @@ func getStringMember(parent utils.Object, key string) (result string, err error)
 		return
 	}
 	return
+}
+
+func requestDockerd(sock sock.SocketInterface, req *http.Request, body []byte) (clientResp *http.Response, err error) {
+	var (
+		clientReq http.Request = *req
+	)
+	clientReq.ContentLength = int64(len(body))
+	clientReq.Body = ioutil.NopCloser(bytes.NewReader(body))
+	return sock.Request(&clientReq)
 }
