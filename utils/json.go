@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/pkg/errors"
+	"github.com/juju/errors"
 )
 
 // Any .

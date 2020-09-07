@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/service"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDisablableClosure(t *testing.T) {
-	var disposable DisposableService = &closureWrapperDisposable{
+	var disposable service.DisposableService = &closureWrapperDisposable{
 		dispose: func(serviceCalled bool) error {
 			assert.True(t, serviceCalled, "dispose lambda of the given case is called with serviceCalled=true")
 			return nil
@@ -22,21 +23,21 @@ func TestDisablableClosure(t *testing.T) {
 	assert.Equal(
 		t,
 		disposable.Service(),
-		ErrServiceCalledMoreThenOnce,
+		errServiceCalledMoreThenOnce,
 		"[DisposableService::Service] must return an ErrServiceCalledMoreThenOnce error when called more then once",
 	)
 	assert.Nil(t, disposable.Dispose(), "dispose of given case return no error")
 	assert.Equal(
 		t,
 		disposable.Dispose(),
-		ErrDisposeCalledMoreThenOnce,
-		"[DisposableService::Dispose] must return an ErrDisposeCalledMoreThenOnce error when called more then once",
+		errDisposeCalledMoreThenOnce,
+		"[DisposableService::Dispose] must return an errDisposeCalledMoreThenOnce error when called more then once",
 	)
 }
 
 func TestClosureDisposedBeforeStart(t *testing.T) {
 	err := errors.New("dispose error")
-	var disposable DisposableService = &closureWrapperDisposable{
+	var disposable service.DisposableService = &closureWrapperDisposable{
 		dispose: func(serviceCalled bool) error {
 			assert.False(t, serviceCalled, "dispose lambda of the given case is called with serviceCalled=false")
 			return err
@@ -46,15 +47,15 @@ func TestClosureDisposedBeforeStart(t *testing.T) {
 		},
 	}
 	assert.Equal(t, disposable.Dispose(), err, "dispose of given case return with given error")
-	if err, ok := disposable.Service().(ErrServiceDisposabled); !ok {
-		assert.NotNil(t, err, "[DisposableService::Service] given case returns an ErrServiceDisposabled error")
+	if err, ok := disposable.Service().(errServiceDisposabled); !ok {
+		assert.NotNil(t, err, "[DisposableService::Service] given case returns an errServiceDisposabled error")
 	} else {
-		assert.Equal(t, err.Err, ErrServiceDisposedBeforeStart, "service of given case return wrapped ErrServiceDisposedBeforeStart error")
+		assert.Equal(t, err.Err, errServiceDisposedBeforeStart, "service of given case return wrapped ErrServiceDisposedBeforeStart error")
 	}
 }
 
 func TestClosureServiceEndWithoutError(t *testing.T) {
-	var disposable DisposableService = &closureWrapperDisposable{
+	var disposable service.DisposableService = &closureWrapperDisposable{
 		dispose: func(serviceCalled bool) error {
 			assert.True(t, serviceCalled, "dispose lambda of the given case is called with serviceCalled=true")
 			return nil
@@ -69,7 +70,7 @@ func TestClosureServiceEndWithoutError(t *testing.T) {
 
 func TestClosureServiceEndWithDisposedError(t *testing.T) {
 	serviceError := errors.New("service error")
-	var disposable DisposableService = &closureWrapperDisposable{
+	var disposable service.DisposableService = &closureWrapperDisposable{
 		dispose: func(serviceCalled bool) error {
 			assert.True(t, serviceCalled, "dispose lambda of the given case is called with serviceCalled=true")
 			return nil
@@ -83,8 +84,8 @@ func TestClosureServiceEndWithDisposedError(t *testing.T) {
 		time.Sleep(time.Duration(100) * time.Millisecond)
 		assert.Nil(t, disposable.Dispose(), "dispose of given case return with given error")
 	}()
-	if err, ok := disposable.Service().(ErrServiceDisposabled); !ok {
-		t.Error("service of given case return ErrServiceDisposabled error")
+	if err, ok := disposable.Service().(errServiceDisposabled); !ok {
+		t.Error("service of given case return errServiceDisposabled error")
 	} else {
 		assert.Equal(t, err.Err, serviceError, "service of given case return wrapped specified error")
 	}
@@ -92,7 +93,7 @@ func TestClosureServiceEndWithDisposedError(t *testing.T) {
 
 func TestClosureServiceEndWithError(t *testing.T) {
 	err := errors.New("service error")
-	var disposable DisposableService = &closureWrapperDisposable{
+	var disposable service.DisposableService = &closureWrapperDisposable{
 		dispose: func(serviceCalled bool) error {
 			assert.True(t, serviceCalled, "dispose lambda of the given case is called with serviceCalled=true")
 			return err
