@@ -229,12 +229,12 @@ func (i *ipamDriver) ReserveAddressForContainer(containerID string, address type
 		log.Errorf("[ipamDriver::ReserveAddressForContainer] Put reserved address(%v) error", address)
 		return err
 	}
-	containerInfo := types.ContainerInfo{ID: containerID}
-	codec := codec.ContainerInfoCodec{Info: &containerInfo}
 	for {
 		var (
-			presented bool
-			err       error
+			presented     bool
+			err           error
+			containerInfo = types.ContainerInfo{ID: containerID}
+			codec         = codec.ContainerInfoCodec{Info: &containerInfo}
 		)
 		if presented, err = i.barrelEtcd.Get(context.Background(), &codec); err != nil {
 			return err
@@ -242,6 +242,11 @@ func (i *ipamDriver) ReserveAddressForContainer(containerID string, address type
 		if !presented {
 			containerInfo.Addresses = []types.Address{address}
 		} else {
+			for _, addr := range containerInfo.Addresses {
+				if addr.PoolID == address.PoolID && addr.Address == address.Address {
+					return nil
+				}
+			}
 			containerInfo.Addresses = append(containerInfo.Addresses, address)
 		}
 		if succeed, err := i.barrelEtcd.Update(context.Background(), &codec); err != nil {

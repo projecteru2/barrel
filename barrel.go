@@ -10,9 +10,12 @@ import (
 	"time"
 
 	dockerClient "github.com/docker/docker/client"
+	"github.com/docker/go-plugins-helpers/network"
 	"github.com/projectcalico/libcalico-go/lib/apiconfig"
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
+	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/driver/calicoplus"
+	"github.com/projecteru2/barrel/driver/fake"
 	"github.com/projecteru2/barrel/service"
 	dockerProxy "github.com/projecteru2/barrel/service/proxy"
 	"github.com/projecteru2/barrel/store"
@@ -80,16 +83,28 @@ func run(c *cli.Context) (err error) {
 	}
 
 	hostEnvVars := c.StringSlice("host")
-	driverEnvVar := c.String("driver")
 	log.Printf("hostEnvVars = %v", hostEnvVars)
-	log.Printf("driverEnvVar = %v", driverEnvVar)
 
-	ipamDriver, netDriver := calicoplus.NewDrivers(driverEnvVar, calico, stor, dockerCli)
+	disableNetworkPlugin := c.Bool("disable-network-plugin")
+	var ipamDriver driver.AddressManager
+	var netDriver network.Driver
+
+	errChannel := utils.NewWriteOnceChannel()
+	if !disableNetworkPlugin {
+		ipamDriver, netDriver = calicoplus.NewDrivers(calico, stor, dockerCli)
+		go func() {
+			if err = calicoplus.RunNetworkPlugin(ipamDriver, netDriver); err != nil {
+				errChannel.Send(err)
+				log.Errorf("[run] Network plugin end with error, cause = %v", err)
+			}
+		}()
+	} else {
+		ipamDriver = fake.NewFakeCalicoPlugin()
+	}
 
 	config := types.DockerConfig{
 		DockerdSocketPath: dockerdPath,
 		DialTimeout:       c.Duration("dial-timeout"),
-		Driver:            driverEnvVar,
 		Hosts:             hostEnvVars,
 		CertFile:          c.String("tls-cert"),
 		KeyFile:           c.String("tls-key"),
@@ -101,8 +116,6 @@ func run(c *cli.Context) (err error) {
 		return
 	}
 
-	errChannel := utils.NewWriteOnceChannel()
-
 	go func() {
 		if err = proxy.Service(); err != nil {
 			errChannel.Send(err)
@@ -111,13 +124,6 @@ func run(c *cli.Context) (err error) {
 				return
 			}
 			log.Error("[run] Proxy shutdown.")
-		}
-	}()
-
-	go func() {
-		if err = calicoplus.RunNetworkPlugin(driverEnvVar, ipamDriver, netDriver); err != nil {
-			errChannel.Send(err)
-			log.Errorf("[run] Network plugin end with error, cause = %v", err)
 		}
 	}()
 
@@ -146,12 +152,6 @@ func main() {
 		Action:  run,
 		Version: versioninfo.VERSION,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "driver",
-				Value:   "calico",
-				Usage:   "driver name",
-				EnvVars: []string{"BARREL_DRIVER_NAME"},
-			},
 			&cli.StringFlag{
 				Name:    "dockerd-path",
 				Aliases: []string{"D"},
@@ -194,6 +194,10 @@ func main() {
 				Value:   "INFO",
 				Usage:   "set log level",
 				EnvVars: []string{"BARREL_LOG_LEVEL"},
+			},
+			&cli.BoolFlag{
+				Name:  "disable-network-plugin",
+				Usage: "disable network plugin",
 			},
 		},
 	}

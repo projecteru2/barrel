@@ -15,11 +15,11 @@ import (
 
 const (
 	ipamSuffix = "-ipam"
+	driverName = "calico"
 )
 
 // NewDrivers .
 func NewDrivers(
-	driverName string,
 	clientv3 clientv3.Interface,
 	stor store.Store,
 	dockerClient *dockerClient.Client,
@@ -38,7 +38,7 @@ func NewDrivers(
 }
 
 // RunNetworkPlugin .
-func RunNetworkPlugin(driverName string, ipam pluginIPAM.Ipam, net pluginNetwork.Driver) error {
+func RunNetworkPlugin(ipam pluginIPAM.Ipam, net pluginNetwork.Driver) error {
 	errChannel := utils.NewWriteOnceChannel()
 
 	networkHandler := pluginNetwork.NewHandler(net)

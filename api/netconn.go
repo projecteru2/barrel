@@ -167,32 +167,31 @@ func (handler NetworkConnectHandler) checkOrRequestFixedIP(
 		ipamConfig  utils.Object
 		ipv4Address string
 		ipv6Address string
-		address     types.Address
 		err         error
 	)
 	if ipamConfig, err = handler.getIPAMConfig(body); err != nil {
-		return false, address, err
+		return false, types.Address{}, err
 	}
 	if ipv4Address, err = getStringMember(ipamConfig, "IPv4Address"); err != nil {
-		return false, address, err
+		return false, types.Address{}, err
 	}
 	if ipv6Address, err = getStringMember(ipamConfig, "IPv6Address"); err != nil {
-		return false, address, err
+		return false, types.Address{}, err
 	}
 	if ipv4Address == "" && ipv6Address == "" {
 		var addr types.AddressWithVersion
 		if addr, err = handler.ipam.ReserveAddressFromPools(pools); err != nil {
-			return false, address, err
+			return false, types.Address{}, err
 		}
 		if addr.Version == 4 {
 			ipamConfig.Set("IPv4Address", utils.NewStringNode(addr.Address.Address))
 		} else {
 			ipamConfig.Set("IPv6Address", utils.NewStringNode(addr.Address.Address))
 		}
-		return true, address, nil
+		return true, addr.Address, nil
 	}
 	// either ipv4 or ipv6 is non blank
-	return false, address, nil
+	return false, types.Address{}, nil
 }
 
 func isFixedIPLabelEnabled(containerInfo ContainerInspectResult) bool {
@@ -238,9 +237,5 @@ func (handler NetworkConnectHandler) writeServerResponse(
 	}
 	if err = utils.Forward(clientResp, res); err != nil {
 		log.Errorf("[NetworkConnectHandler.Handle] forward and read message failed %v", err)
-	}
-	if err := handler.ipam.ReserveAddressForContainer(containerID, fixedIPAddress); err != nil {
-		log.Errorf("[NetworkConnectHandler.Handle] add ReservedAddress(%v) for Container(%s) failed %v",
-			fixedIPAddress, containerID, err)
 	}
 }

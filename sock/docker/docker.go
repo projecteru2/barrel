@@ -24,7 +24,7 @@ func NewSocket(dockerdSocketPath string, dialTimeout time.Duration) Socket {
 		httpClient: &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.DialTimeout("unix", dockerdSocketPath, dialTimeout)
+					return net.DialTimeout("unix", strings.TrimPrefix(dockerdSocketPath, "unix://"), dialTimeout)
 				},
 			},
 		},
