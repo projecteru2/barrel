@@ -1,4 +1,4 @@
-package ipam
+package calicoplus
 
 import (
 	"context"
@@ -13,65 +13,65 @@ import (
 
 	dockerClient "github.com/docker/docker/client"
 	logutils "github.com/projectcalico/libnetwork-plugin/utils/log"
-	calicoDriver "github.com/projecteru2/barrel/ipam/calico"
+	"github.com/projecteru2/barrel/driver"
+	calicoDriver "github.com/projecteru2/barrel/driver/calicoplus/calico"
 	"github.com/projecteru2/barrel/types"
 )
 
-// NetDriver .
-type NetDriver struct {
+type networkDriver struct {
 	calNetDriver calicoDriver.NetworkDriver
 	dockerCli    *dockerClient.Client
-	ipam         types.ReservedAddressManager
+	ipam         driver.ReservedAddressManager
 }
 
 // GetCapabilities .
-func (driver *NetDriver) GetCapabilities() (*network.CapabilitiesResponse, error) {
+func (driver *networkDriver) GetCapabilities() (*network.CapabilitiesResponse, error) {
 	return driver.calNetDriver.GetCapabilities()
 }
 
 // AllocateNetwork .
-func (driver *NetDriver) AllocateNetwork(request *network.AllocateNetworkRequest) (*network.AllocateNetworkResponse, error) {
+func (driver *networkDriver) AllocateNetwork(request *network.AllocateNetworkRequest) (*network.AllocateNetworkResponse, error) {
 	return driver.calNetDriver.AllocateNetwork(request)
 }
 
 // FreeNetwork is used for swarm-mode support in remote plugins, which
 // Calico's libnetwork-plugin doesn't currently support.
-func (driver *NetDriver) FreeNetwork(request *network.FreeNetworkRequest) error {
+func (driver *networkDriver) FreeNetwork(request *network.FreeNetworkRequest) error {
 	return driver.calNetDriver.FreeNetwork(request)
 }
 
 // CreateNetwork .
-func (driver *NetDriver) CreateNetwork(request *network.CreateNetworkRequest) error {
+func (driver *networkDriver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	return driver.calNetDriver.CreateNetwork(request)
 }
 
 // DeleteNetwork .
-func (driver *NetDriver) DeleteNetwork(request *network.DeleteNetworkRequest) error {
+func (driver *networkDriver) DeleteNetwork(request *network.DeleteNetworkRequest) error {
 	return driver.calNetDriver.DeleteNetwork(request)
 }
 
 // CreateEndpoint .
-func (driver *NetDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*network.CreateEndpointResponse, error) {
+func (driver *networkDriver) CreateEndpoint(request *network.CreateEndpointRequest) (*network.CreateEndpointResponse, error) {
 	return driver.calNetDriver.CreateEndpoint(request)
 }
 
 // DeleteEndpoint .
-func (driver *NetDriver) DeleteEndpoint(request *network.DeleteEndpointRequest) error {
+func (driver *networkDriver) DeleteEndpoint(request *network.DeleteEndpointRequest) error {
 	return driver.calNetDriver.DeleteEndpoint(request)
 }
 
 // EndpointInfo .
-func (driver *NetDriver) EndpointInfo(request *network.InfoRequest) (*network.InfoResponse, error) {
+func (driver *networkDriver) EndpointInfo(request *network.InfoRequest) (*network.InfoResponse, error) {
 	return driver.calNetDriver.EndpointInfo(request)
 }
 
 // Join .
-func (driver *NetDriver) Join(request *network.JoinRequest) (*network.JoinResponse, error) {
+func (driver *networkDriver) Join(request *network.JoinRequest) (*network.JoinResponse, error) {
 	return driver.calNetDriver.Join(request)
 }
 
 // Leave .
-func (driver *NetDriver) Leave(request *network.LeaveRequest) error {
+func (driver *networkDriver) Leave(request *network.LeaveRequest) error {
 	logutils.JSONMessage("Leave response", request)
 	var (
 		container        dockerTypes.Container
@@ -102,7 +102,7 @@ func (driver *NetDriver) Leave(request *network.LeaveRequest) error {
 	return driver.calNetDriver.Leave(request)
 }
 
-func (driver *NetDriver) findDockerContainerByEndpointID(endpointID string) (dockerTypes.Container, *dockerNetworkTypes.EndpointSettings, error) {
+func (driver *networkDriver) findDockerContainerByEndpointID(endpointID string) (dockerTypes.Container, *dockerNetworkTypes.EndpointSettings, error) {
 	containers, err := driver.dockerCli.ContainerList(context.Background(), dockerTypes.ContainerListOptions{})
 	if err != nil {
 		log.Errorf("dockerCli ContainerList Error, %v", err)
@@ -119,21 +119,21 @@ func (driver *NetDriver) findDockerContainerByEndpointID(endpointID string) (doc
 }
 
 // DiscoverNew .
-func (driver *NetDriver) DiscoverNew(request *network.DiscoveryNotification) error {
+func (driver *networkDriver) DiscoverNew(request *network.DiscoveryNotification) error {
 	return driver.calNetDriver.DiscoverNew(request)
 }
 
 // DiscoverDelete .
-func (driver *NetDriver) DiscoverDelete(request *network.DiscoveryNotification) error {
+func (driver *networkDriver) DiscoverDelete(request *network.DiscoveryNotification) error {
 	return driver.calNetDriver.DiscoverDelete(request)
 }
 
 // ProgramExternalConnectivity .
-func (driver *NetDriver) ProgramExternalConnectivity(request *network.ProgramExternalConnectivityRequest) error {
+func (driver *networkDriver) ProgramExternalConnectivity(request *network.ProgramExternalConnectivityRequest) error {
 	return driver.calNetDriver.ProgramExternalConnectivity(request)
 }
 
 // RevokeExternalConnectivity .
-func (driver *NetDriver) RevokeExternalConnectivity(request *network.RevokeExternalConnectivityRequest) error {
+func (driver *networkDriver) RevokeExternalConnectivity(request *network.RevokeExternalConnectivityRequest) error {
 	return driver.calNetDriver.RevokeExternalConnectivity(request)
 }

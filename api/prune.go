@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"regexp"
 
+	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
-	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -17,7 +17,7 @@ var regexPruneContainers *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/
 // ContainerPruneHandle .
 type ContainerPruneHandle struct {
 	sock sock.SocketInterface
-	ipam types.ReservedAddressManager
+	ipam driver.ReservedAddressManager
 }
 
 // ContainerPruneResult .
@@ -26,7 +26,7 @@ type ContainerPruneResult struct {
 }
 
 // NewContainerPruneHandle .
-func NewContainerPruneHandle(sock sock.SocketInterface, ipam types.ReservedAddressManager) ContainerPruneHandle {
+func NewContainerPruneHandle(sock sock.SocketInterface, ipam driver.ReservedAddressManager) ContainerPruneHandle {
 	return ContainerPruneHandle{
 		sock: sock,
 		ipam: ipam,

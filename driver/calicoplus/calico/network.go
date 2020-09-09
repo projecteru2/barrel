@@ -33,15 +33,6 @@ import (
 	"github.com/projecteru2/barrel/types"
 )
 
-const (
-	dockerLabelPrefix      = "org.projectcalico.label."
-	labelPollTimeoutEnvKey = "CALICO_LIBNETWORK_LABEL_POLL_TIMEOUT"
-	createProfilesEnvKey   = "CALICO_LIBNETWORK_CREATE_PROFILES"
-	labelEndpointsEnvKey   = "CALICO_LIBNETWORK_LABEL_ENDPOINTS"
-	vethMTUEnvKey          = "CALICO_LIBNETWORK_VETH_MTU"
-	namespaceEnvKey        = "CALICO_LIBNETWORK_NAMESPACE"
-)
-
 // NetworkDriver .
 type NetworkDriver struct {
 	client         clientv3.Interface

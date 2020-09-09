@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/types"
@@ -20,7 +21,7 @@ var regexNetworkConnect *regexp.Regexp = regexp.MustCompile(`/(.*?)/networks/([a
 type NetworkConnectHandler struct {
 	sock           sock.SocketInterface
 	inspectHandler ContainerInspectHandler
-	ipam           types.ReservedAddressManager
+	ipam           driver.ReservedAddressManager
 }
 
 type networkConnectRequest struct {
@@ -29,7 +30,7 @@ type networkConnectRequest struct {
 }
 
 // NewNetworkConnectHandler .
-func NewNetworkConnectHandler(sock sock.SocketInterface, ipam types.ReservedAddressManager) NetworkConnectHandler {
+func NewNetworkConnectHandler(sock sock.SocketInterface, ipam driver.ReservedAddressManager) NetworkConnectHandler {
 	return NetworkConnectHandler{
 		sock:           sock,
 		inspectHandler: ContainerInspectHandler{sock},

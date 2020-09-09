@@ -1,4 +1,4 @@
-package ipam
+package calicoplus
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	caliconet "github.com/projectcalico/libcalico-go/lib/net"
 	logutils "github.com/projectcalico/libnetwork-plugin/utils/log"
 
-	calicoDriver "github.com/projecteru2/barrel/ipam/calico"
-	"github.com/projecteru2/barrel/ipam/codec"
+	calicoDriver "github.com/projecteru2/barrel/driver/calicoplus/calico"
+	"github.com/projecteru2/barrel/driver/calicoplus/codec"
 	"github.com/projecteru2/barrel/store"
 	"github.com/projecteru2/barrel/types"
 
@@ -26,12 +26,6 @@ type ipamDriver struct {
 	calicoIPAM   *calicoDriver.IPAMDriver
 	barrelEtcd   store.Store
 	dockerClient *dockerClient.Client
-}
-
-// AddressManager .
-type AddressManager interface {
-	pluginIPAM.Ipam
-	types.ReservedAddressManager
 }
 
 // GetCapabilities .

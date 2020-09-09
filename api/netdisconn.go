@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/types"
@@ -19,7 +20,7 @@ var regexNetworkDisconnect *regexp.Regexp = regexp.MustCompile(`/(.*?)/networks/
 type NetworkDisconnectHandler struct {
 	inspectHandler ContainerInspectHandler
 	sock           sock.SocketInterface
-	ipam           types.ReservedAddressManager
+	ipam           driver.ReservedAddressManager
 }
 
 type networkDisconnectRequest struct {
@@ -28,7 +29,7 @@ type networkDisconnectRequest struct {
 }
 
 // NewNetworkDisconnectHandler .
-func NewNetworkDisconnectHandler(sock sock.SocketInterface, ipam types.ReservedAddressManager) NetworkDisconnectHandler {
+func NewNetworkDisconnectHandler(sock sock.SocketInterface, ipam driver.ReservedAddressManager) NetworkDisconnectHandler {
 	return NetworkDisconnectHandler{
 		sock:           sock,
 		ipam:           ipam,

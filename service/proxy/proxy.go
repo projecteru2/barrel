@@ -7,6 +7,7 @@ import (
 	"reflect"
 
 	"github.com/projecteru2/barrel/api"
+	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/handler/compose"
 	"github.com/projecteru2/barrel/service"
@@ -18,7 +19,7 @@ import (
 )
 
 // NewProxy .
-func NewProxy(config types.DockerConfig, ipam types.ReservedAddressManager) (service.DisposableService, error) {
+func NewProxy(config types.DockerConfig, ipam driver.ReservedAddressManager) (service.DisposableService, error) {
 	dockerSocket := docker.NewSocket(config.DockerdSocketPath, config.DialTimeout)
 	return createService(config, compose.Handlers([]handler.RequestHandler{
 		api.NewContainerDeleteHandler(dockerSocket, ipam),

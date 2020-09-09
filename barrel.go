@@ -12,7 +12,7 @@ import (
 	dockerClient "github.com/docker/docker/client"
 	"github.com/projectcalico/libcalico-go/lib/apiconfig"
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
-	"github.com/projecteru2/barrel/ipam"
+	"github.com/projecteru2/barrel/driver/calicoplus"
 	"github.com/projecteru2/barrel/service"
 	dockerProxy "github.com/projecteru2/barrel/service/proxy"
 	"github.com/projecteru2/barrel/store"
@@ -84,7 +84,7 @@ func run(c *cli.Context) (err error) {
 	log.Printf("hostEnvVars = %v", hostEnvVars)
 	log.Printf("driverEnvVar = %v", driverEnvVar)
 
-	ipamDriver, netDriver := ipam.NewDrivers(driverEnvVar, calico, stor, dockerCli)
+	ipamDriver, netDriver := calicoplus.NewDrivers(driverEnvVar, calico, stor, dockerCli)
 
 	config := types.DockerConfig{
 		DockerdSocketPath: dockerdPath,
@@ -115,7 +115,7 @@ func run(c *cli.Context) (err error) {
 	}()
 
 	go func() {
-		if err = ipam.RunNetworkPluginService(driverEnvVar, ipamDriver, netDriver); err != nil {
+		if err = calicoplus.RunNetworkPlugin(driverEnvVar, ipamDriver, netDriver); err != nil {
 			errChannel.Send(err)
 			log.Errorf("[run] Network plugin end with error, cause = %v", err)
 		}

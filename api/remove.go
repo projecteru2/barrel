@@ -5,6 +5,7 @@ import (
 	"regexp"
 
 	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/types"
@@ -18,7 +19,7 @@ var regexDeleteContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/
 type ContainerDeleteHandler struct {
 	inspectHandler ContainerInspectHandler
 	sock           sock.SocketInterface
-	ipam           types.ReservedAddressManager
+	ipam           driver.ReservedAddressManager
 }
 
 type containerDeleteRequest struct {
@@ -27,7 +28,7 @@ type containerDeleteRequest struct {
 }
 
 // NewContainerDeleteHandler .
-func NewContainerDeleteHandler(sock sock.SocketInterface, ipam types.ReservedAddressManager) ContainerDeleteHandler {
+func NewContainerDeleteHandler(sock sock.SocketInterface, ipam driver.ReservedAddressManager) ContainerDeleteHandler {
 	return ContainerDeleteHandler{
 		sock:           sock,
 		ipam:           ipam,

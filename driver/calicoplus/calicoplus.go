@@ -1,15 +1,16 @@
-package ipam
+package calicoplus
 
 import (
 	dockerClient "github.com/docker/docker/client"
 	pluginIPAM "github.com/docker/go-plugins-helpers/ipam"
 	pluginNetwork "github.com/docker/go-plugins-helpers/network"
+	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/store"
 	"github.com/projecteru2/barrel/utils"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/projectcalico/libcalico-go/lib/clientv3"
-	calicoDriver "github.com/projecteru2/barrel/ipam/calico"
+	calicoDriver "github.com/projecteru2/barrel/driver/calicoplus/calico"
 )
 
 const (
@@ -22,22 +23,22 @@ func NewDrivers(
 	clientv3 clientv3.Interface,
 	stor store.Store,
 	dockerClient *dockerClient.Client,
-) (AddressManager, pluginNetwork.Driver) {
+) (driver.AddressManager, pluginNetwork.Driver) {
 	ipam := &ipamDriver{
 		driverName:   driverName,
 		calicoIPAM:   calicoDriver.NewCalicoIPAM(clientv3),
 		barrelEtcd:   stor,
 		dockerClient: dockerClient,
 	}
-	return ipam, &NetDriver{
+	return ipam, &networkDriver{
 		calNetDriver: calicoDriver.NewNetworkDriver(clientv3, dockerClient),
 		dockerCli:    dockerClient,
 		ipam:         ipam,
 	}
 }
 
-// RunNetworkPluginService .
-func RunNetworkPluginService(driverName string, ipam pluginIPAM.Ipam, net pluginNetwork.Driver) error {
+// RunNetworkPlugin .
+func RunNetworkPlugin(driverName string, ipam pluginIPAM.Ipam, net pluginNetwork.Driver) error {
 	errChannel := utils.NewWriteOnceChannel()
 
 	networkHandler := pluginNetwork.NewHandler(net)

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/types"
@@ -20,7 +21,7 @@ var regexCreateContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/
 // ContainerCreateHandler .
 type ContainerCreateHandler struct {
 	sock sock.SocketInterface
-	ipam types.ReservedAddressManager
+	ipam driver.ReservedAddressManager
 }
 
 // IPAMConfig .
@@ -45,7 +46,7 @@ type ContainerCreateResponseBody struct {
 }
 
 // NewContainerCreateHandler .
-func NewContainerCreateHandler(sock sock.SocketInterface, ipam types.ReservedAddressManager) ContainerCreateHandler {
+func NewContainerCreateHandler(sock sock.SocketInterface, ipam driver.ReservedAddressManager) ContainerCreateHandler {
 	return ContainerCreateHandler{
 		sock: sock,
 		ipam: ipam,

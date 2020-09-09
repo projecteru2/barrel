@@ -15,10 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	defaultAddress = "0.0.0.0/0"
-)
-
 // IPAMDriver .
 type IPAMDriver struct {
 	cliv3 clientv3.Interface

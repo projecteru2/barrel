@@ -24,6 +24,14 @@ const (
 	CalicoLocalAddressSpace = "CalicoLocalAddressSpace"
 	// CalicoGlobalAddressSpace .
 	CalicoGlobalAddressSpace = "CalicoGlobalAddressSpace"
+
+	defaultAddress         = "0.0.0.0/0"
+	dockerLabelPrefix      = "org.projectcalico.label."
+	labelPollTimeoutEnvKey = "CALICO_LIBNETWORK_LABEL_POLL_TIMEOUT"
+	createProfilesEnvKey   = "CALICO_LIBNETWORK_CREATE_PROFILES"
+	labelEndpointsEnvKey   = "CALICO_LIBNETWORK_LABEL_ENDPOINTS"
+	vethMTUEnvKey          = "CALICO_LIBNETWORK_VETH_MTU"
+	namespaceEnvKey        = "CALICO_LIBNETWORK_NAMESPACE"
 )
 
 // IFPrefix .
