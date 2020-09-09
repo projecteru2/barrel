@@ -5,50 +5,23 @@ import (
 	"net"
 	"net/http"
 	"reflect"
-	"time"
 
-	dockerClient "github.com/docker/docker/client"
-	"github.com/pkg/errors"
-	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
 	"github.com/projecteru2/barrel/api"
-	"github.com/projecteru2/barrel/common"
-	"github.com/projecteru2/barrel/ipam"
+	"github.com/projecteru2/barrel/driver"
+	"github.com/projecteru2/barrel/handler"
+	"github.com/projecteru2/barrel/handler/compose"
+	"github.com/projecteru2/barrel/service"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/sock/docker"
+	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
-	barrelEtcdMeta "github.com/projecteru2/minions/barrel/etcd"
-	calicoIPAM "github.com/projecteru2/minions/driver/calico/ipam"
 	log "github.com/sirupsen/logrus"
 )
 
-// Config .
-type Config struct {
-	DockerdSocketPath string
-	DialTimeout       time.Duration
-	Driver            string
-	DockerGid         int64
-	Hosts             []string
-	CertFile          string
-	KeyFile           string
-}
-
 // NewProxy .
-func NewProxy(config Config, etcd *barrelEtcdMeta.Etcd, calicoV3 calicov3.Interface) (DisposableService, error) {
-	var (
-		dockerCli *dockerClient.Client
-		err       error
-	)
-	if dockerCli, err = dockerClient.NewClientWithOpts(dockerClient.WithHost("unix://" + config.DockerdSocketPath)); err != nil {
-		return nil, errors.Wrap(err, "Error while attempting to instantiate docker client from env")
-	}
-	ipam := ipam.IPAM{
-		CalicoIPAMDriver: *calicoIPAM.NewCalicoIPAM(calicoV3),
-		BarrelEtcd:       etcd,
-		Driver:           config.Driver,
-		DockerClient:     dockerCli,
-	}
+func NewProxy(config types.DockerConfig, ipam driver.ReservedAddressManager) (service.DisposableService, error) {
 	dockerSocket := docker.NewSocket(config.DockerdSocketPath, config.DialTimeout)
-	return createService(config, utils.ComposeHandlers([]utils.RequestHandler{
+	return createService(config, compose.Handlers([]handler.RequestHandler{
 		api.NewContainerDeleteHandler(dockerSocket, ipam),
 		api.NewContainerPruneHandle(dockerSocket, ipam),
 		api.NewContainerCreateHandler(dockerSocket, ipam),
@@ -58,7 +31,7 @@ func NewProxy(config Config, etcd *barrelEtcdMeta.Etcd, calicoV3 calicov3.Interf
 	}...))
 }
 
-func createService(config Config, handler http.Handler) (DisposableService, error) {
+func createService(config types.DockerConfig, handler http.Handler) (service.DisposableService, error) {
 	launcher := HostLauncher{
 		dockerGid: config.DockerGid,
 		certFile:  config.CertFile,
@@ -67,7 +40,7 @@ func createService(config Config, handler http.Handler) (DisposableService, erro
 	}
 	switch len(config.Hosts) {
 	case 0:
-		return nil, common.ErrNoHosts
+		return nil, types.ErrNoHosts
 	case 1:
 		return launcher.Launch(config.Hosts[0])
 	default:
@@ -80,7 +53,7 @@ type forwardProxy struct {
 }
 
 // Handle .
-func (proxy *forwardProxy) Handle(ctx utils.HandleContext, response http.ResponseWriter, request *http.Request) {
+func (proxy *forwardProxy) Handle(ctx handler.Context, response http.ResponseWriter, request *http.Request) {
 	log.Info("[Handle] handle other docker request, will forward stream")
 	var (
 		resp *http.Response

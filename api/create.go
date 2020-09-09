@@ -7,12 +7,12 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pkg/errors"
-	"github.com/projecteru2/barrel/common"
-	"github.com/projecteru2/barrel/ipam"
+	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/driver"
+	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
+	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
-	minionsTypes "github.com/projecteru2/minions/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -21,7 +21,7 @@ var regexCreateContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/
 // ContainerCreateHandler .
 type ContainerCreateHandler struct {
 	sock sock.SocketInterface
-	ipam ipam.IPAM
+	ipam driver.ReservedAddressManager
 }
 
 // IPAMConfig .
@@ -46,7 +46,7 @@ type ContainerCreateResponseBody struct {
 }
 
 // NewContainerCreateHandler .
-func NewContainerCreateHandler(sock sock.SocketInterface, ipam ipam.IPAM) ContainerCreateHandler {
+func NewContainerCreateHandler(sock sock.SocketInterface, ipam driver.ReservedAddressManager) ContainerCreateHandler {
 	return ContainerCreateHandler{
 		sock: sock,
 		ipam: ipam,
@@ -54,7 +54,7 @@ func NewContainerCreateHandler(sock sock.SocketInterface, ipam ipam.IPAM) Contai
 }
 
 // Handle .
-func (handler ContainerCreateHandler) Handle(ctx utils.HandleContext, res http.ResponseWriter, req *http.Request) {
+func (handler ContainerCreateHandler) Handle(ctx handler.Context, res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost || !regexCreateContainer.MatchString(req.URL.Path) {
 		ctx.Next()
 		return
@@ -64,7 +64,7 @@ func (handler ContainerCreateHandler) Handle(ctx utils.HandleContext, res http.R
 		err            error
 		body           []byte
 		bodyObject     utils.Object
-		fixedIPAddress []minionsTypes.ReservedAddress
+		fixedIPAddress []types.Address
 		clientResp     *http.Response
 	)
 	if body, err = ioutil.ReadAll(req.Body); err != nil {
@@ -79,7 +79,9 @@ func (handler ContainerCreateHandler) Handle(ctx utils.HandleContext, res http.R
 		handler.writeErrorResponse(res, err, "check and request fixed-ip")
 		if len(fixedIPAddress) > 0 {
 			for _, address := range fixedIPAddress {
-				handler.ipam.ReleaseReservedAddress(address)
+				if err := handler.ipam.ReleaseReservedAddress(address); err != nil {
+					log.Errorf("[ContainerCreateHandler::Handle] release ip error after checkAndRequestFixedIP failed, cause = %v", err)
+				}
 			}
 		}
 		return
@@ -116,11 +118,11 @@ func isCustomNetwork(networkMode string) bool {
 		!strings.HasPrefix(networkMode, "container:")
 }
 
-func (handler ContainerCreateHandler) checkAndRequestFixedIP(body utils.Object) ([]minionsTypes.ReservedAddress, error) {
+func (handler ContainerCreateHandler) checkAndRequestFixedIP(body utils.Object) ([]types.Address, error) {
 	var (
 		fixedIP     bool
 		networkMode string
-		addresses   []minionsTypes.ReservedAddress
+		addresses   []types.Address
 		err         error
 	)
 	if fixedIP, networkMode, err = handler.checkFixedIPLabelAndNetworkMode(body); err != nil || !fixedIP {
@@ -136,24 +138,24 @@ func (handler ContainerCreateHandler) checkAndRequestFixedIP(body utils.Object) 
 }
 
 func (handler ContainerCreateHandler) requestFixedIP(
-	pools []*minionsTypes.Pool,
+	pools []types.Pool,
 	ipamConfig utils.Object,
-) (bool, minionsTypes.ReservedAddress, error) {
+) (bool, types.Address, error) {
 	var (
 		ipv4Address string
 		ipv6Address string
 		err         error
 	)
 	if ipv4Address, err = getStringMember(ipamConfig, "IPv4Address"); err != nil {
-		return false, minionsTypes.ReservedAddress{}, err
+		return false, types.Address{}, err
 	}
 	if ipv6Address, err = getStringMember(ipamConfig, "IPv6Address"); err != nil {
-		return false, minionsTypes.ReservedAddress{}, err
+		return false, types.Address{}, err
 	}
 	if ipv4Address == "" && ipv6Address == "" {
-		var address common.ReservedAddress
+		var address types.AddressWithVersion
 		if address, err = handler.ipam.ReserveAddressFromPools(pools); err != nil {
-			return false, minionsTypes.ReservedAddress{}, err
+			return false, types.Address{}, err
 		}
 		if address.Version == 4 {
 			ipamConfig.Set("IPv4Address", utils.NewStringNode(address.Address.Address))
@@ -162,7 +164,7 @@ func (handler ContainerCreateHandler) requestFixedIP(
 		}
 		return true, address.Address, err
 	}
-	return false, minionsTypes.ReservedAddress{}, nil
+	return false, types.Address{}, nil
 }
 
 func (handler ContainerCreateHandler) checkFixedIPLabelAndNetworkMode(body utils.Object) (bool, string, error) {
@@ -203,12 +205,12 @@ func (handler ContainerCreateHandler) checkFixedIPLabelAndNetworkMode(body utils
 func (handler ContainerCreateHandler) visitNetworkConfigAndAllocateAddress(
 	networkMode string,
 	body utils.Object,
-) ([]minionsTypes.ReservedAddress, error) {
+) ([]types.Address, error) {
 	var (
 		networkConfig   utils.Object
 		endpointsConfig utils.Object
 		err             error
-		addresses       []minionsTypes.ReservedAddress
+		addresses       []types.Address
 	)
 	if networkConfig, err = ensureObjectMember(body, "NetworkingConfig"); err != nil {
 		return nil, err
@@ -222,17 +224,17 @@ func (handler ContainerCreateHandler) visitNetworkConfigAndAllocateAddress(
 	}
 	for _, networkName := range networkNames {
 		var (
-			pools          []*minionsTypes.Pool
+			pools          []types.Pool
 			endpointConfig utils.Object
 			ipamConfig     utils.Object
-			address        minionsTypes.ReservedAddress
+			address        types.Address
 			allocated      bool
 		)
 		if !isCustomNetwork(networkName) {
 			continue
 		}
 		if pools, err = handler.ipam.GetIPPoolsByNetworkName(networkName); err != nil {
-			if err == ipam.ErrUnsupervisedNetwork {
+			if err == types.ErrUnsupervisedNetwork {
 				continue
 			}
 			return addresses, err
@@ -253,19 +255,21 @@ func (handler ContainerCreateHandler) visitNetworkConfigAndAllocateAddress(
 
 func (handler ContainerCreateHandler) writeServerResponse(
 	res http.ResponseWriter,
-	fixedIPAddress []minionsTypes.ReservedAddress,
+	fixedIPAddress []types.Address,
 	clientResp *http.Response,
 ) {
 	defer clientResp.Body.Close()
 
 	var err error
 	if clientResp.StatusCode != http.StatusCreated {
-		log.Errorf("[ContainerCreateHandler.Handle] create container failed, status code = %d", clientResp.StatusCode)
+		log.Errorf("[ContainerCreateHandler::writeServerResponse] create container failed, status code = %d", clientResp.StatusCode)
 		if err = utils.Forward(clientResp, res); err != nil {
-			log.Errorf("[ContainerCreateHandler.Handle] forward message failed %v", err)
+			log.Errorf("[ContainerCreateHandler::writeServerResponse] forward message failed, cause = %v", err)
 		}
 		for _, address := range fixedIPAddress {
-			handler.ipam.ReleaseReservedAddress(address)
+			if err := handler.ipam.ReleaseReservedAddress(address); err != nil {
+				log.Errorf("[ContainerCreateHandler::writeServerResponse] release reserved address failed, cause = %v", err)
+			}
 		}
 		return
 	}
@@ -285,7 +289,7 @@ func (handler ContainerCreateHandler) writeServerResponse(
 		return
 	}
 	if err = handler.ipam.InitContainerInfoRecord(
-		minionsTypes.ContainerInfo{ID: body.ID, Addresses: fixedIPAddress},
+		types.ContainerInfo{ID: body.ID, Addresses: fixedIPAddress},
 	); err != nil {
 		log.Errorf("[ContainerCreateHandler.Handle] mark fixed-ip(%s) for container(%s) failed %v", fixedIPAddress, body.ID, err)
 	}

@@ -9,22 +9,20 @@ const (
 	falseFlag int32 = 0
 )
 
-// AtomicBool .
-type AtomicBool struct {
+type atomicBool struct {
 	// value must be either 1 or 0, otherwise is a UB
 	value int32
 }
 
-// NewAtomicBool .
-func NewAtomicBool(init bool) AtomicBool {
+func newAtomicBool(init bool) atomicBool {
 	if init {
-		return AtomicBool{trueFlag}
+		return atomicBool{trueFlag}
 	}
-	return AtomicBool{falseFlag}
+	return atomicBool{falseFlag}
 }
 
 // Set .
-func (b *AtomicBool) Set(value bool) {
+func (b *atomicBool) Set(value bool) {
 	if value {
 		atomic.StoreInt32(&b.value, trueFlag)
 	} else {
@@ -33,7 +31,7 @@ func (b *AtomicBool) Set(value bool) {
 }
 
 // Cas .
-func (b *AtomicBool) Cas(old bool, new bool) bool {
+func (b *atomicBool) Cas(old bool, new bool) bool {
 	var oldint = falseFlag
 	if old {
 		oldint = trueFlag
@@ -45,6 +43,6 @@ func (b *AtomicBool) Cas(old bool, new bool) bool {
 }
 
 // Get .
-func (b *AtomicBool) Get() bool {
+func (b *atomicBool) Get() bool {
 	return atomic.LoadInt32(&b.value) == trueFlag
 }

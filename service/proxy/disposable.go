@@ -3,41 +3,15 @@ package proxy
 import (
 	"sync"
 
-	"github.com/pkg/errors"
+	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/service"
 )
 
-// Disposable .
-type Disposable interface {
-	Dispose() error
-}
-
-// DisposableService .
-type DisposableService interface {
-	Disposable
-	// will block until finishes or error encoutered
-	Service() error
-}
-
-// ErrDisposeCalledMoreThenOnce .
-var ErrDisposeCalledMoreThenOnce = errors.New("Should not call dispose more then once")
-
-// ErrServiceCalledMoreThenOnce .
-var ErrServiceCalledMoreThenOnce = errors.New("Should not call service more then once")
-
-// ErrServiceDisposedBeforeStart .
-var ErrServiceDisposedBeforeStart = errors.New("Service disposed before start")
-
-// ErrServiceDisposabled represents a serivce is disposed
-type ErrServiceDisposabled struct {
-	Err error
-}
-
-func (err ErrServiceDisposabled) Error() string {
-	if err.Err == nil {
-		return ""
-	}
-	return err.Err.Error()
-}
+var (
+	errDisposeCalledMoreThenOnce  = errors.New("Should not call dispose more then once")
+	errServiceCalledMoreThenOnce  = errors.New("Should not call service more then once")
+	errServiceDisposedBeforeStart = errors.New("Service disposed before start")
+)
 
 type closureWrapperDisposable struct {
 	dispose         func(bool) error
@@ -50,7 +24,7 @@ type closureWrapperDisposable struct {
 // NewDisposableService .
 // we ensure if dispose is called before service, then service will not be called
 // if dispose is called after service, then value of its args is true
-func NewDisposableService(service func() error, dispose func(bool) error) DisposableService {
+func newDisposableService(service func() error, dispose func(bool) error) service.DisposableService {
 	return &closureWrapperDisposable{service: service, dispose: dispose}
 }
 
@@ -65,7 +39,7 @@ func (wrapper *closureWrapperDisposable) Service() error {
 	defer wrapper.mutex.Unlock()
 
 	if wrapper.disposeIsCalled {
-		return ErrServiceDisposabled{err}
+		return errServiceDisposabled{err}
 	}
 	return err
 }
@@ -74,11 +48,11 @@ func (wrapper *closureWrapperDisposable) checkBeforeStart() error {
 	wrapper.mutex.Lock()
 	defer wrapper.mutex.Unlock()
 	if wrapper.serviceIsCalled {
-		return ErrServiceCalledMoreThenOnce
+		return errServiceCalledMoreThenOnce
 	}
 	wrapper.serviceIsCalled = true
 	if wrapper.disposeIsCalled {
-		return ErrServiceDisposabled{ErrServiceDisposedBeforeStart}
+		return errServiceDisposabled{errServiceDisposedBeforeStart}
 	}
 	return nil
 }
@@ -96,8 +70,19 @@ func (wrapper *closureWrapperDisposable) checkBeforeDispose() (bool, error) {
 	defer wrapper.mutex.Unlock()
 
 	if wrapper.disposeIsCalled {
-		return wrapper.serviceIsCalled, ErrDisposeCalledMoreThenOnce
+		return wrapper.serviceIsCalled, errDisposeCalledMoreThenOnce
 	}
 	wrapper.disposeIsCalled = true
 	return wrapper.serviceIsCalled, nil
+}
+
+type errServiceDisposabled struct {
+	Err error
+}
+
+func (err errServiceDisposabled) Error() string {
+	if err.Err == nil {
+		return ""
+	}
+	return err.Err.Error()
 }
