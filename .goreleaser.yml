@@ -12,7 +12,6 @@ builds:
       - -X github.com/projecteru2/barrel/versioninfo.VERSION={{.Env.VERSION}}
       - -X github.com/projecteru2/barrel/versioninfo.BUILTAT={{.Date}}
     goos:
-      - darwin
       - linux
     goarch:
       - amd64
