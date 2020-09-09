@@ -108,7 +108,7 @@ func (handler NetworkConnectHandler) Handle(ctx handler.Context, res http.Respon
 		}
 		return
 	}
-	handler.writeServerResponse(res, containerInfo.ID, allocated, fixedIPAddress, clientResp)
+	handler.writeServerResponse(res, allocated, fixedIPAddress, clientResp)
 }
 
 func (handler NetworkConnectHandler) releaseReservedAddress(address types.Address, label string) {
@@ -215,7 +215,6 @@ func (handler NetworkConnectHandler) getIPAMConfig(body utils.Object) (utils.Obj
 
 func (handler NetworkConnectHandler) writeServerResponse(
 	res http.ResponseWriter,
-	containerID string,
 	allocated bool,
 	fixedIPAddress types.Address,
 	clientResp *http.Response,
