@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/juju/errors"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/utils"
 )

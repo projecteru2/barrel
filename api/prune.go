@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/projecteru2/barrel/ipam"
+	"github.com/projecteru2/barrel/driver"
+	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
 	"github.com/projecteru2/barrel/utils"
 	log "github.com/sirupsen/logrus"
@@ -16,7 +17,7 @@ var regexPruneContainers *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/
 // ContainerPruneHandle .
 type ContainerPruneHandle struct {
 	sock sock.SocketInterface
-	ipam ipam.IPAM
+	ipam driver.ReservedAddressManager
 }
 
 // ContainerPruneResult .
@@ -25,7 +26,7 @@ type ContainerPruneResult struct {
 }
 
 // NewContainerPruneHandle .
-func NewContainerPruneHandle(sock sock.SocketInterface, ipam ipam.IPAM) ContainerPruneHandle {
+func NewContainerPruneHandle(sock sock.SocketInterface, ipam driver.ReservedAddressManager) ContainerPruneHandle {
 	return ContainerPruneHandle{
 		sock: sock,
 		ipam: ipam,
@@ -33,7 +34,7 @@ func NewContainerPruneHandle(sock sock.SocketInterface, ipam ipam.IPAM) Containe
 }
 
 // Handle .
-func (handler ContainerPruneHandle) Handle(ctx utils.HandleContext, response http.ResponseWriter, request *http.Request) {
+func (handler ContainerPruneHandle) Handle(ctx handler.Context, response http.ResponseWriter, request *http.Request) {
 	if !handler.match(request) {
 		ctx.Next()
 		return
@@ -87,7 +88,7 @@ func (handler ContainerPruneHandle) match(request *http.Request) bool {
 func (handler ContainerPruneHandle) releaseReservedIPs(containerIDs []string) {
 	for _, fullID := range containerIDs {
 		log.Debugf("[ContainerPruneHandle.releaseReservedIPs] releasing reserved IP by tied container(%s)", fullID)
-		if err := handler.ipam.ReleaseContainer(fullID); err != nil {
+		if err := handler.ipam.ReleaseContainerAddresses(fullID); err != nil {
 			log.Errorf("[ContainerPruneHandle.releaseReservedIPs] release reserved IP by tied container(%s) error", fullID)
 			log.Errorf("[ContainerPruneHandle.releaseReservedIPs] release IP failed %v", err)
 		} else {

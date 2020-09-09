@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/pkg/errors"
-	"github.com/projecteru2/barrel/common"
-	"github.com/projecteru2/barrel/ipam"
+	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/driver"
+	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
+	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
-	minionsTypes "github.com/projecteru2/minions/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -21,7 +21,7 @@ var regexNetworkConnect *regexp.Regexp = regexp.MustCompile(`/(.*?)/networks/([a
 type NetworkConnectHandler struct {
 	sock           sock.SocketInterface
 	inspectHandler ContainerInspectHandler
-	ipam           ipam.IPAM
+	ipam           driver.ReservedAddressManager
 }
 
 type networkConnectRequest struct {
@@ -30,7 +30,7 @@ type networkConnectRequest struct {
 }
 
 // NewNetworkConnectHandler .
-func NewNetworkConnectHandler(sock sock.SocketInterface, ipam ipam.IPAM) NetworkConnectHandler {
+func NewNetworkConnectHandler(sock sock.SocketInterface, ipam driver.ReservedAddressManager) NetworkConnectHandler {
 	return NetworkConnectHandler{
 		sock:           sock,
 		inspectHandler: ContainerInspectHandler{sock},
@@ -39,10 +39,10 @@ func NewNetworkConnectHandler(sock sock.SocketInterface, ipam ipam.IPAM) Network
 }
 
 // Handle .
-func (handler NetworkConnectHandler) Handle(ctx utils.HandleContext, res http.ResponseWriter, req *http.Request) {
+func (handler NetworkConnectHandler) Handle(ctx handler.Context, res http.ResponseWriter, req *http.Request) {
 	var (
 		networkConnectRequest networkConnectRequest
-		pools                 []*minionsTypes.Pool
+		pools                 []types.Pool
 		matched               bool
 		err                   error
 	)
@@ -53,7 +53,7 @@ func (handler NetworkConnectHandler) Handle(ctx utils.HandleContext, res http.Re
 	if pools, err = handler.ipam.GetIPPoolsByNetworkName(
 		networkConnectRequest.networkIdentifier,
 	); err != nil {
-		if err == ipam.ErrUnsupervisedNetwork {
+		if err == types.ErrUnsupervisedNetwork {
 			ctx.Next()
 			return
 		}
@@ -66,7 +66,7 @@ func (handler NetworkConnectHandler) Handle(ctx utils.HandleContext, res http.Re
 		body           []byte
 		bodyObject     utils.Object
 		containerInfo  ContainerInspectResult
-		fixedIPAddress minionsTypes.ReservedAddress
+		fixedIPAddress types.Address
 		allocated      bool
 		clientResp     *http.Response
 	)
@@ -96,7 +96,7 @@ func (handler NetworkConnectHandler) Handle(ctx utils.HandleContext, res http.Re
 		if body, err = utils.Marshal(bodyObject.Any()); err != nil {
 			handler.writeErrorResponse(res, err, "marshal server request")
 			if allocated {
-				handler.ipam.ReleaseReservedAddress(fixedIPAddress)
+				handler.releaseReservedAddress(fixedIPAddress, "marshal body object failed")
 			}
 			return
 		}
@@ -104,11 +104,17 @@ func (handler NetworkConnectHandler) Handle(ctx utils.HandleContext, res http.Re
 	if clientResp, err = requestDockerd(handler.sock, req, body); err != nil {
 		handler.writeErrorResponse(res, err, "request dockerd socket")
 		if allocated {
-			handler.ipam.ReleaseReservedAddress(fixedIPAddress)
+			handler.releaseReservedAddress(fixedIPAddress, "request dockerd failed")
 		}
 		return
 	}
 	handler.writeServerResponse(res, containerInfo.ID, allocated, fixedIPAddress, clientResp)
+}
+
+func (handler NetworkConnectHandler) releaseReservedAddress(address types.Address, label string) {
+	if err := handler.ipam.ReleaseReservedAddress(address); err != nil {
+		log.Errorf("[NetworkConnectHandler::Handle] release reserved address error when %s, cause = %v", label, err)
+	}
 }
 
 func (handler NetworkConnectHandler) match(request *http.Request) (networkConnectRequest, bool) {
@@ -154,39 +160,38 @@ func (handler NetworkConnectHandler) getContainerInfo(
 }
 
 func (handler NetworkConnectHandler) checkOrRequestFixedIP(
-	pools []*minionsTypes.Pool,
+	pools []types.Pool,
 	body utils.Object,
-) (bool, minionsTypes.ReservedAddress, error) {
+) (bool, types.Address, error) {
 	var (
 		ipamConfig  utils.Object
 		ipv4Address string
 		ipv6Address string
-		address     minionsTypes.ReservedAddress
 		err         error
 	)
 	if ipamConfig, err = handler.getIPAMConfig(body); err != nil {
-		return false, address, err
+		return false, types.Address{}, err
 	}
 	if ipv4Address, err = getStringMember(ipamConfig, "IPv4Address"); err != nil {
-		return false, address, err
+		return false, types.Address{}, err
 	}
 	if ipv6Address, err = getStringMember(ipamConfig, "IPv6Address"); err != nil {
-		return false, address, err
+		return false, types.Address{}, err
 	}
 	if ipv4Address == "" && ipv6Address == "" {
-		var addr common.ReservedAddress
+		var addr types.AddressWithVersion
 		if addr, err = handler.ipam.ReserveAddressFromPools(pools); err != nil {
-			return false, address, err
+			return false, types.Address{}, err
 		}
 		if addr.Version == 4 {
 			ipamConfig.Set("IPv4Address", utils.NewStringNode(addr.Address.Address))
 		} else {
 			ipamConfig.Set("IPv6Address", utils.NewStringNode(addr.Address.Address))
 		}
-		return true, address, nil
+		return true, addr.Address, nil
 	}
 	// either ipv4 or ipv6 is non blank
-	return false, address, nil
+	return false, types.Address{}, nil
 }
 
 func isFixedIPLabelEnabled(containerInfo ContainerInspectResult) bool {
@@ -212,7 +217,7 @@ func (handler NetworkConnectHandler) writeServerResponse(
 	res http.ResponseWriter,
 	containerID string,
 	allocated bool,
-	fixedIPAddress minionsTypes.ReservedAddress,
+	fixedIPAddress types.Address,
 	clientResp *http.Response,
 ) {
 	defer clientResp.Body.Close()
@@ -224,15 +229,13 @@ func (handler NetworkConnectHandler) writeServerResponse(
 			log.Errorf("[NetworkConnectHandler.Handle] forward message failed %v", err)
 		}
 		if allocated {
-			handler.ipam.ReleaseReservedAddress(fixedIPAddress)
+			if err := handler.ipam.ReleaseReservedAddress(fixedIPAddress); err != nil {
+				log.Errorf("[NetworkConnectHandler::writeServerResponse] release address error after unsuccess container create, cause = %v", err)
+			}
 		}
 		return
 	}
 	if err = utils.Forward(clientResp, res); err != nil {
 		log.Errorf("[NetworkConnectHandler.Handle] forward and read message failed %v", err)
-	}
-	if err := handler.ipam.AddReservedAddressForContainer(containerID, fixedIPAddress); err != nil {
-		log.Errorf("[NetworkConnectHandler.Handle] add ReservedAddress(%v) for Container(%s) failed %v",
-			fixedIPAddress, containerID, err)
 	}
 }

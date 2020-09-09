@@ -1,24 +1,23 @@
 package utils
 
 import (
-	"github.com/pkg/errors"
+	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
 )
 
-// ErrChannelIsClosed .
-var ErrChannelIsClosed = errors.New("channel is closed")
+var errChannelIsClosed = errors.New("channel is closed")
 
 // WriteOnceChannel .
 type WriteOnceChannel struct {
 	actual chan error
-	closed AtomicBool
+	closed atomicBool
 }
 
 // NewWriteOnceChannel .
 func NewWriteOnceChannel() WriteOnceChannel {
 	return WriteOnceChannel{
 		actual: make(chan error),
-		closed: NewAtomicBool(false),
+		closed: newAtomicBool(false),
 	}
 }
 
@@ -26,7 +25,7 @@ func NewWriteOnceChannel() WriteOnceChannel {
 func (ch *WriteOnceChannel) Wait() (err error) {
 	var ok bool
 	if err, ok = <-ch.actual; !ok {
-		err = ErrChannelIsClosed
+		err = errors.Wrap(err, errChannelIsClosed)
 	}
 	return
 }

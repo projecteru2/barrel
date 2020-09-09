@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/sockets"
-	"github.com/pkg/errors"
-	"github.com/projecteru2/barrel/common"
+	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/service"
+	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -29,7 +30,7 @@ type HostLauncher struct {
 }
 
 // Launch .
-func (launcher *HostLauncher) Launch(address string) (DisposableService, error) {
+func (launcher *HostLauncher) Launch(address string) (service.DisposableService, error) {
 	var (
 		server http.Server = http.Server{
 			Handler: launcher.handler,
@@ -43,12 +44,11 @@ func (launcher *HostLauncher) Launch(address string) (DisposableService, error) 
 	if service, err = launcher.newHost(&server, address); err != nil {
 		return nil, err
 	}
-	return NewDisposableService(service, dispose), nil
+	return newDisposableService(service, dispose), nil
 }
 
 // LaunchMultiple .
-func (launcher *HostLauncher) LaunchMultiple(addresses ...string) (DisposableService, error) {
-
+func (launcher *HostLauncher) LaunchMultiple(addresses ...string) (service.DisposableService, error) {
 	var (
 		server http.Server = http.Server{
 			Handler: launcher.handler,
@@ -66,7 +66,7 @@ func (launcher *HostLauncher) LaunchMultiple(addresses ...string) (DisposableSer
 		}
 		services = append(services, service)
 	}
-	return NewDisposableService(func() error {
+	return newDisposableService(func() error {
 		ch := utils.NewWriteOnceChannel()
 		for _, serv := range services {
 			go func(service func() error) {
@@ -127,7 +127,7 @@ func (launcher *HostLauncher) newHTTPHost(server *http.Server, address string) (
 
 func (launcher *HostLauncher) newHTTPSHost(server *http.Server, address string) (func() error, error) {
 	if launcher.certFile == "" || launcher.keyFile == "" {
-		return nil, common.ErrCertAndKeyMissing
+		return nil, types.ErrCertAndKeyMissing
 	}
 	var (
 		listener net.Listener

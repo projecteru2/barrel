@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/pkg/errors"
-	"github.com/projecteru2/barrel/common"
+	"github.com/juju/errors"
 	"github.com/projecteru2/barrel/sock"
+	"github.com/projecteru2/barrel/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -33,10 +33,10 @@ func (handler ContainerInspectHandler) Inspect(identifier string, version string
 		err       error
 	)
 	if identifier == "" {
-		return container, common.ErrNoContainerIdent
+		return container, types.ErrNoContainerIdent
 	}
 	if version == "" {
-		return container, common.ErrWrongAPIVersion
+		return container, types.ErrWrongAPIVersion
 	}
 	if req, err = http.NewRequest(http.MethodGet, fmt.Sprintf("/%s/containers/%s/json", version, identifier), nil); err != nil {
 		log.Errorf("[ContainerInspectHandler.GetFullContainerID] create inspect container(%s) request error", identifier)
@@ -53,8 +53,7 @@ func (handler ContainerInspectHandler) Inspect(identifier string, version string
 	log.Infof("[ContainerInspectHandler.GetFullContainerID] inspect container(%s) done, response status = %s", identifier, resp.Status)
 	if resp.StatusCode == http.StatusNotFound {
 		log.Infof("[ContainerInspectHandler.GetFullContainerID] container(%s) is not exists", identifier)
-		err = errors.Wrap(common.ErrContainerNotExists, identifier)
-		return container, err
+		return container, errors.Annotate(types.ErrContainerNotExists, identifier)
 	}
 
 	var data []byte
