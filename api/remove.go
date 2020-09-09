@@ -4,10 +4,11 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/pkg/errors"
-	"github.com/projecteru2/barrel/common"
-	"github.com/projecteru2/barrel/ipam"
+	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/driver"
+	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
+	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
 	log "github.com/sirupsen/logrus"
 )
@@ -18,7 +19,7 @@ var regexDeleteContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/
 type ContainerDeleteHandler struct {
 	inspectHandler ContainerInspectHandler
 	sock           sock.SocketInterface
-	ipam           ipam.IPAM
+	ipam           driver.ReservedAddressManager
 }
 
 type containerDeleteRequest struct {
@@ -27,7 +28,7 @@ type containerDeleteRequest struct {
 }
 
 // NewContainerDeleteHandler .
-func NewContainerDeleteHandler(sock sock.SocketInterface, ipam ipam.IPAM) ContainerDeleteHandler {
+func NewContainerDeleteHandler(sock sock.SocketInterface, ipam driver.ReservedAddressManager) ContainerDeleteHandler {
 	return ContainerDeleteHandler{
 		sock:           sock,
 		ipam:           ipam,
@@ -36,7 +37,7 @@ func NewContainerDeleteHandler(sock sock.SocketInterface, ipam ipam.IPAM) Contai
 }
 
 // Handle .
-func (handler ContainerDeleteHandler) Handle(ctx utils.HandleContext, response http.ResponseWriter, request *http.Request) {
+func (handler ContainerDeleteHandler) Handle(ctx handler.Context, response http.ResponseWriter, request *http.Request) {
 	var (
 		containerDeleteRequest containerDeleteRequest
 		matched                bool
@@ -57,7 +58,7 @@ func (handler ContainerDeleteHandler) Handle(ctx utils.HandleContext, response h
 		containerDeleteRequest.version,
 	); err != nil {
 		log.Errorf("[ContainerDeleteHandler.Handle] get full container id failed %v", err)
-		if rootErr := errors.Cause(err); rootErr == common.ErrContainerNotExists {
+		if rootErr := errors.Cause(err); rootErr == types.ErrContainerNotExists {
 			writeServerResponse(response, http.StatusNotFound, err.Error())
 		} else {
 			writeServerResponse(response, http.StatusInternalServerError, "inspect container before remove error")
@@ -104,7 +105,7 @@ func (handler ContainerDeleteHandler) releaseReservedIP(idOrName string, fullID 
 }
 
 func (handler ContainerDeleteHandler) releaseReservedIPByTiedContainerIDIfIdle(fullID string) {
-	if err := handler.ipam.ReleaseContainer(fullID); err != nil {
+	if err := handler.ipam.ReleaseContainerAddresses(fullID); err != nil {
 		log.Errorf("[ContainerDeleteHandler.releaseReservedIPByTiedContainerIDIfIdle] release reserved IP by tied container(%s) error", fullID)
 		log.Errorf("[ContainerDeleteHandler.releaseReservedIPByTiedContainerIDIfIdle] release ip failed %v", err)
 	}

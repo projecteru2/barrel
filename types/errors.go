@@ -1,8 +1,10 @@
-package common
+package types
 
-import "github.com/pkg/errors"
+import "github.com/juju/errors"
 
 var (
+	// ErrCIDRNotInPool .
+	ErrCIDRNotInPool = errors.New("The requested subnet must match the CIDR of a configured Calico IP Pool")
 	// ErrNoHosts .
 	ErrNoHosts = errors.New("can't create proxy without hosts")
 	// ErrCertAndKeyMissing .
@@ -17,4 +19,8 @@ var (
 	ErrWrongAPIVersion = errors.New("api version must not be null")
 	// ErrContainerNotExists .
 	ErrContainerNotExists = errors.New("container is not exists")
+	// ErrUnsupervisedNetwork .
+	ErrUnsupervisedNetwork = errors.New("unsupervised network")
+	// ErrConfiguredPoolUnfound .
+	ErrConfiguredPoolUnfound = errors.New("network doesn't contains configured ip pools")
 )

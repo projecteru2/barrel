@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/pkg/errors"
-	"github.com/projecteru2/barrel/ipam"
+	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/driver"
+	"github.com/projecteru2/barrel/handler"
 	"github.com/projecteru2/barrel/sock"
+	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
-	minionsTypes "github.com/projecteru2/minions/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,7 +20,7 @@ var regexNetworkDisconnect *regexp.Regexp = regexp.MustCompile(`/(.*?)/networks/
 type NetworkDisconnectHandler struct {
 	inspectHandler ContainerInspectHandler
 	sock           sock.SocketInterface
-	ipam           ipam.IPAM
+	ipam           driver.ReservedAddressManager
 }
 
 type networkDisconnectRequest struct {
@@ -28,7 +29,7 @@ type networkDisconnectRequest struct {
 }
 
 // NewNetworkDisconnectHandler .
-func NewNetworkDisconnectHandler(sock sock.SocketInterface, ipam ipam.IPAM) NetworkDisconnectHandler {
+func NewNetworkDisconnectHandler(sock sock.SocketInterface, ipam driver.ReservedAddressManager) NetworkDisconnectHandler {
 	return NetworkDisconnectHandler{
 		sock:           sock,
 		ipam:           ipam,
@@ -37,7 +38,7 @@ func NewNetworkDisconnectHandler(sock sock.SocketInterface, ipam ipam.IPAM) Netw
 }
 
 // Handle .
-func (handler NetworkDisconnectHandler) Handle(ctx utils.HandleContext, res http.ResponseWriter, req *http.Request) {
+func (handler NetworkDisconnectHandler) Handle(ctx handler.Context, res http.ResponseWriter, req *http.Request) {
 	var (
 		networkDisconnectRequest networkDisconnectRequest
 		matched                  bool
@@ -49,13 +50,13 @@ func (handler NetworkDisconnectHandler) Handle(ctx utils.HandleContext, res http
 	log.Debug("[ContainerDeleteHandler.Handle] container remove request")
 
 	var (
-		pools []*minionsTypes.Pool
+		pools []types.Pool
 		err   error
 	)
 	if pools, err = handler.ipam.GetIPPoolsByNetworkName(
 		networkDisconnectRequest.networkIdentifier,
 	); err != nil {
-		if err == ipam.ErrUnsupervisedNetwork {
+		if err == types.ErrUnsupervisedNetwork {
 			ctx.Next()
 			return
 		}
@@ -130,8 +131,8 @@ func (handler NetworkDisconnectHandler) getContainerInfo(
 	return inspect(containerIdentifier)
 }
 
-func (handler NetworkDisconnectHandler) releaseReservedAddresses(containerID string, pools []*minionsTypes.Pool) {
-	if err := handler.ipam.ReleaseContainerByIPPools(containerID, pools); err != nil {
+func (handler NetworkDisconnectHandler) releaseReservedAddresses(containerID string, pools []types.Pool) {
+	if err := handler.ipam.ReleaseContainerAddressesByIPPools(containerID, pools); err != nil {
 		log.Errorf(
 			"[NetworkDisconnectHandler::releaseReservedAddresses] release container(%s) reserved address error, %v",
 			containerID,

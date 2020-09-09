@@ -1,41 +1,34 @@
-package utils
+package compose
 
 import (
 	"net/http"
 
+	"github.com/projecteru2/barrel/handler"
+	"github.com/projecteru2/barrel/utils"
+
 	log "github.com/sirupsen/logrus"
 )
 
-// HandleContext .
-type HandleContext interface {
-	Next()
-}
-
-// RequestHandler .
-type RequestHandler interface {
-	Handle(HandleContext, http.ResponseWriter, *http.Request)
+// Handlers .
+func Handlers(handlers ...handler.RequestHandler) http.Handler {
+	return httpRequestHandler{handlers: handlers}
 }
 
 type httpRequestHandler struct {
-	handlers []RequestHandler
+	handlers []handler.RequestHandler
 }
 
 func (handler httpRequestHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	log.Infof("[ComposedHttpHandler] Incoming request, method = %s, url = %s", req.Method, req.URL.String())
-	PrintHeaders("ServerRequestHeaders:", req.Header)
+	utils.PrintHeaders("ServerRequestHeaders:", req.Header)
 
 	for _, handler := range handler.handlers {
-		ctx := handleContextImpl{}
-		handler.Handle(&ctx, res, req)
+		ctx := &handleContextImpl{}
+		handler.Handle(ctx, res, req)
 		if !ctx.next {
 			return
 		}
 	}
-}
-
-// ComposeHandlers .
-func ComposeHandlers(handlers ...RequestHandler) http.Handler {
-	return httpRequestHandler{handlers: handlers}
 }
 
 type handleContextImpl struct {

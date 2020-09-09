@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/juju/errors"
 )
 
 func TestWriteOnceChannel(test *testing.T) {
@@ -33,7 +33,7 @@ func TestWriteOnceChannel(test *testing.T) {
 		} else if err.Error() != "test1" {
 			t.Error("failed to receive the first error")
 		}
-		if err := writeOnceChannel.Wait(); err != ErrChannelIsClosed {
+		if err := writeOnceChannel.Wait(); errors.Cause(err) != errChannelIsClosed {
 			t.Error("failed to receive an error from closed write once channel")
 		}
 	})

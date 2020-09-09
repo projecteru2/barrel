@@ -1,10 +1,10 @@
 run:
-timeout: 5m
-tests: false
-skip-dirs:
-  - vendor
-  - tools
-modules-download-mode: readonly
+  timeout: 5m
+  tests: false
+  skip-dirs:
+    - vendor
+    - tools
+  modules-download-mode: readonly
 
 linters-settings:
   maligned:
