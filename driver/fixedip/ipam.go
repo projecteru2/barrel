@@ -14,7 +14,7 @@ import (
 // Ipam .
 type Ipam struct {
 	calicoDriver.Ipam
-	utils.ObjectLogger
+	utils.LoggerFactory
 	vessel.FixedIPAllocator
 }
 
@@ -23,10 +23,8 @@ func NewIpam(
 	allocator vessel.FixedIPAllocator,
 ) pluginIpam.Ipam {
 	return Ipam{
-		Ipam: calicoDriver.NewIpam(allocator),
-		ObjectLogger: utils.ObjectLogger{
-			ObjectName: "FixedIPIpam",
-		},
+		Ipam:             calicoDriver.NewIpam(allocator),
+		LoggerFactory:    utils.NewObjectLogger("FixedIPIpam"),
 		FixedIPAllocator: allocator,
 	}
 }
@@ -53,6 +51,7 @@ func (ipam Ipam) RequestAddress(request *pluginIpam.RequestAddressRequest) (*plu
 		},
 	); err != nil {
 		if err == types.ErrFixedIPNotAllocated {
+			logger.Debug("FixedIPNotAllocated")
 			return ipam.Ipam.RequestAddress(request)
 		}
 		return nil, err

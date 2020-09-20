@@ -39,6 +39,7 @@ func NewFixedIPAllocator(allocator CalicoIPAllocator, stor store.Store) FixedIPA
 // AssignFixedIP .
 func (impl FixedIPAllocatorImpl) AssignFixedIP(ctx context.Context, ip types.IP) error {
 	logger := impl.Logger("AssignFixedIP")
+	logger.Debug("Start")
 
 	// First check whether the ip is assigned as fixed ip
 	var (
@@ -56,6 +57,7 @@ func (impl FixedIPAllocatorImpl) AssignFixedIP(ctx context.Context, ip types.IP)
 		return types.ErrFixedIPNotAllocated
 	}
 	if ipInfo.Status.Match(types.IPStatusInUse) {
+		logger.Debug("IPStatusInUse")
 		return types.ErrIPInUse
 	}
 
@@ -64,6 +66,7 @@ func (impl FixedIPAllocatorImpl) AssignFixedIP(ctx context.Context, ip types.IP)
 		logger.Errorf("Update IPInfo error, cause=%v", err)
 		return err
 	} else if !ok {
+		// update failed, the ip is modified by another container
 		return types.ErrIPInUse
 	}
 
@@ -73,6 +76,7 @@ func (impl FixedIPAllocatorImpl) AssignFixedIP(ctx context.Context, ip types.IP)
 // UnassignFixedIP .
 func (impl FixedIPAllocatorImpl) UnassignFixedIP(ctx context.Context, ip types.IP) error {
 	logger := impl.Logger("UnassignFixedIP")
+	logger.Debug("Start")
 
 	// First check whether the ip is assigned as fixed ip
 	var (
@@ -95,7 +99,7 @@ func (impl FixedIPAllocatorImpl) UnassignFixedIP(ctx context.Context, ip types.I
 		return nil
 	}
 
-	ipInfo.Status.Mark(types.IPStatusInUse)
+	ipInfo.Status.Unmark(types.IPStatusInUse)
 	if ok, err = impl.Update(ctx, ipInfoCodec); err != nil {
 		logger.Errorf("Update IPInfo error, cause=%v", err)
 		return err

@@ -15,7 +15,11 @@ deps:
 
 test:
 	go vet `go list ./... | grep -v '/vendor/' | grep -v '/tools'`
-	go test -timeout 120s -count=1 -cover ./...
+	go test -timeout 120s -count=1 -cover \
+		./app/... \
+		./proxy/... \
+		./vessel/... \
+		./utils/... 
 
 binary:
 	go build -ldflags "$(GO_LDFLAGS)" -a -tags "netgo osusergo" -installsuffix netgo -o eru-barrel

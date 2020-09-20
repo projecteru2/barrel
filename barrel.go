@@ -60,6 +60,7 @@ func run(c *cli.Context) (err error) {
 	log.Printf("hostEnvVars = %v", hostEnvVars)
 
 	barrel := app.Application{
+		NodeName:               c.String("node-name"),
 		Mode:                   strings.ToLower(c.String("mode")),
 		DockerGID:              int(dockerGid),
 		DockerDaemonUnixSocket: dockerdPath,
@@ -88,6 +89,13 @@ func main() {
 		Version: versioninfo.VERSION,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
+				Name:    "node-name",
+				Aliases: []string{"nm"},
+				Value:   "barrel",
+				Usage:   "node name",
+				EnvVars: []string{"BARREL_NODE_NAME"},
+			},
+			&cli.StringFlag{
 				Name:    "mode",
 				Aliases: []string{"m"},
 				Value:   "default",
@@ -97,14 +105,14 @@ func main() {
 			&cli.StringFlag{
 				Name:    "dockerd-path",
 				Aliases: []string{"D"},
-				Value:   "unix:///var/run/dockerd.sock",
+				Value:   "unix:///var/run/docker.sock",
 				Usage:   "dockerd path",
 				EnvVars: []string{"BARREL_DOCKERD_PATH"},
 			},
 			&cli.StringSliceFlag{
 				Name:    "host",
 				Aliases: []string{"H"},
-				Value:   cli.NewStringSlice("unix:///var/run/docker.sock"),
+				Value:   cli.NewStringSlice("unix:///var/run/barrel.sock"),
 				Usage:   "host, can set multiple times",
 				EnvVars: []string{"BARREL_HOSTS"},
 			},

@@ -41,14 +41,14 @@ type containerCreateResponseBody struct {
 type containerCreateHandler struct {
 	utils.LoggerFactory
 	client barrelHttp.Client
-	vessel.Helper
+	vess   vessel.Helper
 }
 
 func newContainerCreateHandler(client barrelHttp.Client, vess vessel.Helper) proxy.RequestHandler {
 	return containerCreateHandler{
 		LoggerFactory: utils.NewObjectLogger("containerCreateHandler"),
 		client:        client,
-		Helper:        vess,
+		vess:          vess,
 	}
 }
 
@@ -80,7 +80,7 @@ func (handler containerCreateHandler) Handle(ctx proxy.HandleContext, res http.R
 		writeErrorResponse(res, logger, err, "check and request fixed-ip")
 		if len(fixedIPAddress) > 0 {
 			for _, address := range fixedIPAddress {
-				if err := handler.FixedIPAllocator().UnallocFixedIP(context.Background(), address); err != nil {
+				if err := handler.vess.FixedIPAllocator().UnallocFixedIP(context.Background(), address); err != nil {
 					logger.Errorf("release ip error after checkAndRequestFixedIP failed, cause = %v", err)
 				}
 			}
@@ -143,7 +143,7 @@ func (handler containerCreateHandler) requestFixedIP(
 	}
 	if ipv4Address == "" && ipv6Address == "" {
 		var address types.IPAddress
-		if address, err = handler.FixedIPAllocator().AllocFixedIPFromPools(context.Background(), pools); err != nil {
+		if address, err = handler.vess.FixedIPAllocator().AllocFixedIPFromPools(context.Background(), pools); err != nil {
 			return false, types.IP{}, err
 		}
 		if address.Version == 4 {
@@ -222,7 +222,7 @@ func (handler containerCreateHandler) visitNetworkConfigAndAllocateAddress(
 		if !isCustomNetwork(networkName) {
 			continue
 		}
-		if pools, err = handler.CalicoIPAllocator().GetPoolsByNetworkName(context.Background(), networkName); err != nil {
+		if pools, err = handler.vess.CalicoIPAllocator().GetPoolsByNetworkName(context.Background(), networkName); err != nil {
 			if err == types.ErrUnsupervisedNetwork {
 				continue
 			}
@@ -257,7 +257,7 @@ func (handler containerCreateHandler) writeServerResponse(
 			logger.Errorf("forward message failed, cause = %v", err)
 		}
 		for _, address := range fixedIPAddress {
-			if err := handler.FixedIPAllocator().UnallocFixedIP(context.Background(), address); err != nil {
+			if err := handler.vess.FixedIPAllocator().UnallocFixedIP(context.Background(), address); err != nil {
 				logger.Errorf("release reserved address failed, cause = %v", err)
 			}
 		}
@@ -278,9 +278,9 @@ func (handler containerCreateHandler) writeServerResponse(
 		logger.Errorf("create container resp blank container id %v, related address = %v", err, fixedIPAddress)
 		return
 	}
-	if err = handler.InitContainerInfoRecord(
+	if err = handler.vess.InitContainerInfoRecord(
 		context.Background(),
-		types.ContainerInfo{ID: body.ID, Addresses: fixedIPAddress},
+		types.ContainerInfo{ID: body.ID, HostName: handler.vess.NodeName(), Addresses: fixedIPAddress},
 	); err != nil {
 		logger.Errorf("mark fixed-ip(%s) for container(%s) failed %v", fixedIPAddress, body.ID, err)
 	}

@@ -1,4 +1,4 @@
-package docker 
+package docker
 
 // func newMockHandler() ContainerCreateHandler {
 // 	return ContainerCreateHandler{}

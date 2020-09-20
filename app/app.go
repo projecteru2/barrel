@@ -27,6 +27,7 @@ import (
 
 // Application .
 type Application struct {
+	NodeName               string
 	Mode                   string
 	DockerGID              int
 	DockerDaemonUnixSocket string
@@ -113,7 +114,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 	if stor, err = app.getEtcdClient(context.Background(), apiConfig); err != nil {
 		return nil, err
 	}
-	vess = vessel.NewHelper(vessel.NewVessel(client, dockerCli, app.DriverName, stor), stor)
+	vess = vessel.NewHelper(vessel.NewVessel(app.NodeName, client, dockerCli, app.DriverName, stor), stor)
 	if app.EnableCNMAgent {
 		agent := vessel.NewAgent(vess, vessel.AgentConfig{})
 		services = append(services, agent)
