@@ -9,20 +9,22 @@ const (
 	falseFlag int32 = 0
 )
 
-type atomicBool struct {
+// AtomicBool .
+type AtomicBool struct {
 	// value must be either 1 or 0, otherwise is a UB
 	value int32
 }
 
-func newAtomicBool(init bool) atomicBool {
+// NewAtomicBool .
+func NewAtomicBool(init bool) AtomicBool {
 	if init {
-		return atomicBool{trueFlag}
+		return AtomicBool{trueFlag}
 	}
-	return atomicBool{falseFlag}
+	return AtomicBool{falseFlag}
 }
 
 // Set .
-func (b *atomicBool) Set(value bool) {
+func (b *AtomicBool) Set(value bool) {
 	if value {
 		atomic.StoreInt32(&b.value, trueFlag)
 	} else {
@@ -31,7 +33,7 @@ func (b *atomicBool) Set(value bool) {
 }
 
 // Cas .
-func (b *atomicBool) Cas(old bool, new bool) bool {
+func (b *AtomicBool) Cas(old bool, new bool) bool {
 	var oldint = falseFlag
 	if old {
 		oldint = trueFlag
@@ -43,6 +45,36 @@ func (b *atomicBool) Cas(old bool, new bool) bool {
 }
 
 // Get .
-func (b *atomicBool) Get() bool {
+func (b *AtomicBool) Get() bool {
 	return atomic.LoadInt32(&b.value) == trueFlag
+}
+
+// AtomicInt64 .
+type AtomicInt64 struct {
+	value int64
+}
+
+// Get .
+func (i *AtomicInt64) Get() int64 {
+	return atomic.LoadInt64(&i.value)
+}
+
+// GetInt .
+func (i *AtomicInt64) GetInt() int {
+	return int(atomic.LoadInt64(&i.value))
+}
+
+// Set .
+func (i *AtomicInt64) Set(value int64) {
+	atomic.StoreInt64(&i.value, value)
+}
+
+// Inc .
+func (i *AtomicInt64) Inc() int64 {
+	return atomic.AddInt64(&i.value, 1)
+}
+
+// Add .
+func (i *AtomicInt64) Add(value int64) int64 {
+	return atomic.AddInt64(&i.value, value)
 }

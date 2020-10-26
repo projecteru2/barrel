@@ -1,0 +1,32 @@
+## Architechure
+
+main
++-app
+  +-driver/calico/plus.NewDriverService
+  +-driver/calico.NewDriverService
+  +-proxy/docker.NewProxyService
++-network
+  +-calico
+    +
+  +-reservation
+    +
++-proxy
+  +-HttpClient
+  +-HandleContext
+  +-RequestHandler
+  +-HttpProxyHandler
+  +-docker
+    +-docker_apis
+      +-HttpClient
+      +-HandleContext
+      +-RequestHandler
+      +-driver/reservation.IPAM
+    +-NewProxyService
+      +-HttpProxyHandler
+      +-docker_apis
+    +-Config
++-store
++-service
++-utils
+
+
