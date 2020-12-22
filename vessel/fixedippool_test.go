@@ -10,6 +10,7 @@ import (
 	"github.com/projecteru2/barrel/store"
 	storeMocks "github.com/projecteru2/barrel/store/mocks"
 	"github.com/projecteru2/barrel/types"
+	"github.com/projecteru2/barrel/utils"
 	"github.com/projecteru2/barrel/vessel/codec"
 	"github.com/projecteru2/barrel/vessel/mocks"
 )
@@ -18,10 +19,7 @@ func TestAllocFixedIPSuccess(t *testing.T) {
 	calicoIPAllocator := mocks.CalicoIPAllocator{}
 	stor := storeMocks.Store{}
 
-	allocator := FixedIPAllocatorImpl{
-		CalicoIPAllocator: &calicoIPAllocator,
-		Store:             &stor,
-	}
+	allocator := newFixedIPAllocatorImpl(&calicoIPAllocator, &stor)
 
 	stor.On("Get", mock.Anything, mock.Anything).Return(false, nil)
 	calicoIPAllocator.On("AllocIP", mock.Anything, mock.Anything).Return(nil)
@@ -38,10 +36,7 @@ func TestAllocAllocatedFixedIP(t *testing.T) {
 	calicoIPAllocator := mocks.CalicoIPAllocator{}
 	stor := storeMocks.Store{}
 
-	allocator := FixedIPAllocatorImpl{
-		CalicoIPAllocator: &calicoIPAllocator,
-		Store:             &stor,
-	}
+	allocator := newFixedIPAllocatorImpl(&calicoIPAllocator, &stor)
 
 	stor.On("Get", mock.Anything, mock.Anything).Return(
 		func(_ context.Context, decoder store.Decoder) bool {
@@ -71,10 +66,7 @@ func TestAllocInuseFixedIP(t *testing.T) {
 	calicoIPAllocator := mocks.CalicoIPAllocator{}
 	stor := storeMocks.Store{}
 
-	allocator := FixedIPAllocatorImpl{
-		CalicoIPAllocator: &calicoIPAllocator,
-		Store:             &stor,
-	}
+	allocator := newFixedIPAllocatorImpl(&calicoIPAllocator, &stor)
 
 	stor.On("Get", mock.Anything, mock.Anything).Return(
 		func(_ context.Context, decoder store.Decoder) bool {
@@ -99,4 +91,12 @@ func TestAllocInuseFixedIP(t *testing.T) {
 		Address: "10.10.10.10",
 	})
 	assert.Error(t, err)
+}
+
+func newFixedIPAllocatorImpl(calicoIPAllocator CalicoIPAllocator, stor store.Store) FixedIPAllocatorImpl {
+	return FixedIPAllocatorImpl{
+		CalicoIPAllocator: calicoIPAllocator,
+		Store:             stor,
+		LoggerFactory:     utils.NewObjectLogger("FixedIPAllocatorImpl"),
+	}
 }
