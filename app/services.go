@@ -18,6 +18,14 @@ type starter struct {
 	disposeTimeout time.Duration
 }
 
+func newStarter(ss []service.Service, disposeTimeout time.Duration) starter {
+	return starter{
+		logger: utils.NewStandardLogger(),
+		ss: ss,
+		disposeTimeout: disposeTimeout,
+	}
+}
+
 func (starter starter) start(sigs <-chan os.Signal) error {
 	chErr := utils.NewAutoCloseChanErr(len(starter.ss))
 

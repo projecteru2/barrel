@@ -16,13 +16,22 @@ import (
 var regexDeleteContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/([a-zA-Z0-9][a-zA-Z0-9_.-]*)(\?.*)?`)
 
 type containerDeleteHandler struct {
+	utils.LoggerFactory
 	inspectAgent containerInspectAgent
 	client       barrelHttp.Client
 	vessel.Helper
 }
 
+func newContainerDeleteHandler(client barrelHttp.Client, vess vessel.Helper, inspectAgent containerInspectAgent) proxy.RequestHandler {
+	return containerDeleteHandler{
+		LoggerFactory: utils.NewObjectLogger("containerDeleteHandler"),
+		client:        client,
+		Helper:        vess,
+		inspectAgent:  inspectAgent,
+	}
+}
+
 type containerDeleteRequest struct {
-	utils.LoggerFactory
 	version    string
 	identifier string
 }

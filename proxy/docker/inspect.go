@@ -24,6 +24,13 @@ type containerInspectAgent struct {
 	client barrelHttp.Client
 }
 
+func newContainerInspectAgent(client barrelHttp.Client) containerInspectAgent {
+	return containerInspectAgent{
+		LoggerFactory: utils.NewObjectLogger("containerInspectAgent"),
+		client:        client,
+	}
+}
+
 // Inspect .
 func (handler containerInspectAgent) Inspect(identifier string, version string) (containerInspectResult, error) {
 	logger := handler.Logger("Inspect")

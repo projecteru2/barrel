@@ -18,13 +18,22 @@ import (
 var regexNetworkConnect *regexp.Regexp = regexp.MustCompile(`/(.*?)/networks/([a-zA-Z0-9][a-zA-Z0-9_.-]*)/connect(\?.*)?`)
 
 type networkConnectHandler struct {
+	utils.LoggerFactory
 	client       barrelHttp.Client
 	inspectAgent containerInspectAgent
 	vessel.Helper
 }
 
+func newNetworkConnectHandler(client barrelHttp.Client, vess vessel.Helper, inspectAgent containerInspectAgent) proxy.RequestHandler {
+	return networkConnectHandler{
+		LoggerFactory: utils.NewObjectLogger("networkConnectHandler"),
+		client:        client,
+		Helper:        vess,
+		inspectAgent:  inspectAgent,
+	}
+}
+
 type networkConnectRequest struct {
-	utils.LoggerFactory
 	networkIdentifier string
 	version           string
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/projectcalico/libcalico-go/lib/apiconfig"
 	"github.com/projectcalico/libcalico-go/lib/clientv3"
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/projecteru2/barrel/driver"
 	calicoDriver "github.com/projecteru2/barrel/driver/calico"
@@ -44,10 +45,13 @@ type Application struct {
 func (app Application) Run() error {
 	switch app.Mode {
 	case "default":
+		log.Info("Running in default mode")
 		return app.runMode(app.defaultMode)
 	case "proxy-only":
+		log.Info("Running in proxy only mode")
 		return app.runMode(app.proxyOnlyMode)
 	case "network-plugin-only":
+		log.Info("Running in network plugin only mode")
 		return app.runMode(app.networkPluginOnlyMode)
 	default:
 		return errors.New("Unrecognized barrel mode, support only [ --mode default | proxy-only | network-plugin-only ]")
@@ -67,10 +71,7 @@ func (app Application) runMode(serviceFactory func() ([]service.Service, error))
 	if services, err = serviceFactory(); err != nil {
 		return err
 	}
-	return starter{
-		ss:             services,
-		disposeTimeout: app.ShutdownTimeout,
-	}.start(sigs)
+	return newStarter(services, app.ShutdownTimeout).start(sigs)
 }
 
 func (app Application) getAPIConfig() (*apiconfig.CalicoAPIConfig, error) {
@@ -134,7 +135,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 func (app Application) proxyOnlyMode() ([]service.Service, error) {
 	return []service.Service{
 		proxyService{
-			Server:    barrelHttp.NewServer(nil),
+			Server:    barrelHttp.NewServer(docker.NewSimpleHandler(app.DockerDaemonUnixSocket, app.DialTimeout)),
 			gid:       app.DockerGID,
 			tlsConfig: barrelHttp.TLSConfig{},
 			hosts:     app.Hosts,

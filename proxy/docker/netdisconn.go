@@ -17,13 +17,22 @@ import (
 var regexNetworkDisconnect *regexp.Regexp = regexp.MustCompile(`/(.*?)/networks/([a-zA-Z0-9][a-zA-Z0-9_.-]*)/disconnect(\?.*)?`)
 
 type networkDisconnectHandler struct {
+	utils.LoggerFactory
 	inspectAgent containerInspectAgent
 	client       barrelHttp.Client
 	vessel.Helper
 }
 
+func newNetworkDisconnectHandler(client barrelHttp.Client, vess vessel.Helper, inspectAgent containerInspectAgent) proxy.RequestHandler {
+	return networkDisconnectHandler{
+		LoggerFactory: utils.NewObjectLogger("networkDisconnectHandler"),
+		client:        client,
+		Helper:        vess,
+		inspectAgent:  inspectAgent,
+	}
+}
+
 type networkDisconnectRequest struct {
-	utils.LoggerFactory
 	networkIdentifier string
 	version           string
 }

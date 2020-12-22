@@ -15,12 +15,20 @@ import (
 var regexPruneContainers *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/prune(\?.*)?`)
 
 type containerPruneHandle struct {
+	utils.LoggerFactory
 	client barrelHttp.Client
 	vessel.Helper
 }
 
+func newContainerPruneHandle(client barrelHttp.Client, vess vessel.Helper) proxy.RequestHandler {
+	return containerPruneHandle{
+		LoggerFactory: utils.NewObjectLogger("containerPruneHandle"),
+		client:        client,
+		Helper:        vess,
+	}
+}
+
 type containerPruneResult struct {
-	utils.LoggerFactory
 	ContainersDeleted []string
 }
 

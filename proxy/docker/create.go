@@ -44,6 +44,14 @@ type containerCreateHandler struct {
 	vessel.Helper
 }
 
+func newContainerCreateHandler(client barrelHttp.Client, vess vessel.Helper) proxy.RequestHandler {
+	return containerCreateHandler{
+		LoggerFactory: utils.NewObjectLogger("containerCreateHandler"),
+		client:        client,
+		Helper:        vess,
+	}
+}
+
 // Handle .
 func (handler containerCreateHandler) Handle(ctx proxy.HandleContext, res http.ResponseWriter, req *http.Request) {
 	logger := handler.Logger("Handle")
