@@ -278,7 +278,7 @@ func (handler containerCreateHandler) writeServerResponse(
 		logger.Errorf("create container resp blank container id %v, related address = %v", err, fixedIPAddress)
 		return
 	}
-	if err = handler.ContainerVessel().UpdateContainer(
+	if err = handler.InitContainerInfoRecord(
 		context.Background(),
 		types.ContainerInfo{ID: body.ID, Addresses: fixedIPAddress},
 	); err != nil {

@@ -18,6 +18,6 @@ Follow our wiki at [Install As Daemon](https://github.com/projecteru2/barrel/wik
 
 ### Running Status
 
-1. Proxy and barrel-network-plugin turn on(Default)
-2. Proxy only
-3. Calico-network-plugin only
+1.  Proxy and barrel-network-plugin turn on(Default)
+2.  Proxy only
+3.  Calico-network-plugin only
