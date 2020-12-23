@@ -33,7 +33,7 @@ type Etcd struct {
 }
 
 // NewClient .
-func NewClient(ctx context.Context, config apiconfig.CalicoAPIConfig) (*Etcd, error) {
+func NewClient(ctx context.Context, config *apiconfig.CalicoAPIConfig) (*Etcd, error) {
 	endpoints := strings.Split(config.Spec.EtcdConfig.EtcdEndpoints, ",")
 	cliv3, err := clientv3.New(clientv3.Config{
 		Endpoints:            endpoints,
