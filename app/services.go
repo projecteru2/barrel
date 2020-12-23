@@ -20,8 +20,8 @@ type starter struct {
 
 func newStarter(ss []service.Service, disposeTimeout time.Duration) starter {
 	return starter{
-		logger: utils.NewStandardLogger(),
-		ss: ss,
+		logger:         utils.NewStandardLogger(),
+		ss:             ss,
 		disposeTimeout: disposeTimeout,
 	}
 }
