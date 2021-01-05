@@ -11,6 +11,10 @@ var (
 	ErrCertAndKeyMissing = errors.New("can't create https host without cert and key")
 	// ErrServiceShutdown .
 	ErrServiceShutdown = errors.New("Service shutdown")
+	// ErrCannotDisposeService .
+	ErrCannotDisposeService = errors.New("Can't dispose service")
+	// ErrSystemTerminateSignal .
+	ErrSystemTerminateSignal = errors.New("System terminal signal")
 	// ErrNoListener .
 	ErrNoListener = errors.New("No listener is provided")
 	// ErrNoContainerIdent .
@@ -23,4 +27,8 @@ var (
 	ErrUnsupervisedNetwork = errors.New("unsupervised network")
 	// ErrConfiguredPoolUnfound .
 	ErrConfiguredPoolUnfound = errors.New("network doesn't contains configured ip pools")
+	// ErrIPInUse .
+	ErrIPInUse = errors.New("ip address already in use")
+	// ErrFixedIPNotAllocated .
+	ErrFixedIPNotAllocated = errors.New("fixed-ip not allocated")
 )

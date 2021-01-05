@@ -1,13 +1,15 @@
 package service
 
-// Disposable .
-type Disposable interface {
-	Dispose() error
+import (
+	"context"
+)
+
+// Service .
+type Service interface {
+	Serve(context.Context) (Disposable, error)
 }
 
-// DisposableService .
-type DisposableService interface {
-	Disposable
-	// will block until finishes or error encoutered
-	Service() error
+// Disposable .
+type Disposable interface {
+	Dispose(context.Context) error
 }

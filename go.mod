@@ -16,10 +16,12 @@ require (
 	github.com/docker/go-plugins-helpers v0.0.0-20200102110956-c9a8a2d92ccc
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/go-openapi/spec v0.19.9 // indirect
+	github.com/google/martian v2.1.0+incompatible // indirect
 	github.com/googleapis/gnostic v0.0.0-20170729233727-0c5108395e2d // indirect
 	github.com/gophercloud/gophercloud v0.12.0 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
 	github.com/juju/errors v0.0.0-20200330140219-3fe23663418f
+	github.com/juju/testing v0.0.0-20201030020617-7189b3728523 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
@@ -28,15 +30,17 @@ require (
 	github.com/projectcalico/go-yaml-wrapper v0.0.0-20191112210931-090425220c54 // indirect
 	github.com/projectcalico/libcalico-go v3.4.0-0.dev+incompatible
 	github.com/projectcalico/libnetwork-plugin v1.1.3-0.20180524185918-f42c4fce3cdb
+	github.com/prometheus/common v0.15.0 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.5.1
+	github.com/urfave/cli v1.22.4 // indirect
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/vishvananda/netlink v1.1.0
 	go.etcd.io/etcd v3.3.1+incompatible // indirect
 	go.uber.org/automaxprocs v1.3.0
 	go.uber.org/zap v1.15.0 // indirect
-	google.golang.org/grpc v1.25.1 // indirect
+	google.golang.org/appengine v1.5.0 // indirect
 	gopkg.in/go-playground/validator.v8 v8.18.2 // indirect
 	k8s.io/api v0.15.12 // indirect
 	k8s.io/apimachinery v0.15.12
