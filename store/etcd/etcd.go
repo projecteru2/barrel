@@ -9,8 +9,8 @@ import (
 	"github.com/juju/errors"
 	"github.com/projecteru2/barrel/store"
 
-	"github.com/coreos/etcd/clientv3"
 	"github.com/projectcalico/libcalico-go/lib/apiconfig"
+	"go.etcd.io/etcd/clientv3"
 )
 
 const (
