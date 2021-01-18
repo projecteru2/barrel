@@ -12,3 +12,4 @@ vendor/*
 scripts/conf
 scripts/*.gz
 logs
+*.log

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/googleapis/gnostic/OpenAPIv2"
 	log "github.com/sirupsen/logrus"
 	cli "github.com/urfave/cli/v2"
 	_ "go.uber.org/automaxprocs"
