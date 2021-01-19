@@ -133,8 +133,8 @@ func (m manager) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAd
 	// Auto assign an IP address.
 	// IPv4/v6 pool will be nil if the docker network doesn't have a subnet associated with.
 	// Otherwise, it will be set to the Calico pool to assign from.
-	var IPsV4 []caliconet.IP
-	var IPsV6 []caliconet.IP
+	var IPsV4 []caliconet.IPNet
+	var IPsV6 []caliconet.IPNet
 	if IPsV4, IPsV6, err = m.cliv3.IPAM().AutoAssign(
 		context.Background(),
 		calicoipam.AutoAssignArgs{
