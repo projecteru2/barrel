@@ -22,23 +22,25 @@ func (wrapper ipamWrapper) GetCapabilities() (*pluginIPAM.CapabilitiesResponse, 
 }
 
 // GetDefaultAddressSpaces .
-func (wrapper ipamWrapper) GetDefaultAddressSpaces() (*pluginIPAM.AddressSpacesResponse, error) {
+func (wrapper ipamWrapper) GetDefaultAddressSpaces() (resp *pluginIPAM.AddressSpacesResponse, err error) {
 	log.Info("GetDefaultAddressSpaces")
-	resp, err := wrapper.ipam.GetDefaultAddressSpaces()
-	if err == nil {
-		logutils.JSONMessage("GetDefaultAddressSpace response", resp)
+	if resp, err = wrapper.ipam.GetDefaultAddressSpaces(); err != nil {
+		log.Errorf("GetDefaultAddressSpaces error, cause=%v", err)
+		return
 	}
-	return resp, err
+	logutils.JSONMessage("GetDefaultAddressSpace response", resp)
+	return
 }
 
 // RequestPool .
-func (wrapper ipamWrapper) RequestPool(request *pluginIPAM.RequestPoolRequest) (*pluginIPAM.RequestPoolResponse, error) {
+func (wrapper ipamWrapper) RequestPool(request *pluginIPAM.RequestPoolRequest) (resp *pluginIPAM.RequestPoolResponse, err error) {
 	logutils.JSONMessage("RequestPool", request)
-	resp, err := wrapper.ipam.RequestPool(request)
-	if err == nil {
-		logutils.JSONMessage("RequestPool response", resp)
+	if resp, err = wrapper.ipam.RequestPool(request); err != nil {
+		log.Errorf("RequestPool error, cause=%v", err)
+		return
 	}
-	return resp, nil
+	logutils.JSONMessage("RequestPool response", resp)
+	return
 }
 
 // ReleasePool .
@@ -48,13 +50,14 @@ func (wrapper ipamWrapper) ReleasePool(request *pluginIPAM.ReleasePoolRequest) e
 }
 
 // RequestAddress .
-func (wrapper ipamWrapper) RequestAddress(request *pluginIPAM.RequestAddressRequest) (*pluginIPAM.RequestAddressResponse, error) {
+func (wrapper ipamWrapper) RequestAddress(request *pluginIPAM.RequestAddressRequest) (resp *pluginIPAM.RequestAddressResponse, err error) {
 	logutils.JSONMessage("RequestAddress", request)
-	resp, err := wrapper.ipam.RequestAddress(request)
-	if err == nil {
-		logutils.JSONMessage("RequestAddress response", resp)
+	if resp, err = wrapper.ipam.RequestAddress(request); err != nil {
+		log.Errorf("RequestAddress error, cause=%v", err)
+		return
 	}
-	return resp, nil
+	logutils.JSONMessage("RequestAddress response", resp)
+	return
 }
 
 // ReleaseAddress .

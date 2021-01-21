@@ -2,7 +2,6 @@ package vessel
 
 import (
 	"context"
-	"fmt"
 	"net"
 
 	dockerTypes "github.com/docker/docker/api/types"
@@ -28,8 +27,8 @@ type CalicoIPAllocator interface {
 	AllocIPFromPool(ctx context.Context, poolID string) (types.IPAddress, error)
 	UnallocIP(ctx context.Context, ip types.IP) error
 	GetPoolByID(ctx context.Context, poolID string) (types.Pool, error)
-	GetPoolByCidr(ctx context.Context, cidr string) (types.Pool, error)
-	GetPoolsByCidrs(ctx context.Context, cidr []string) ([]types.Pool, error)
+	GetPoolByCIDR(ctx context.Context, cidr string) (types.Pool, error)
+	GetPoolsByCIDRS(ctx context.Context, cidr []string) ([]types.Pool, error)
 	GetDefaultPool(ipv6 bool) types.Pool
 	AllocIPFromPools(ctx context.Context, pools []types.Pool) (types.IPAddress, error)
 	GetPoolsByNetworkName(ctx context.Context, name string) ([]types.Pool, error)
@@ -156,9 +155,13 @@ func (m manager) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAd
 			"A single address should be assigned. Got %v", IPs)
 	}
 	return types.IPAddress{
-		IP:      types.IP{PoolID: poolID, Address: fmt.Sprintf("%v", IPs[0])},
+		IP:      types.IP{PoolID: poolID, Address: formatIP(IPs[0])},
 		Version: IPs[0].Version(),
 	}, nil
+}
+
+func formatIP(ip caliconet.IPNet) string {
+	return ip.IPNet.IP.String()
 }
 
 // GetIPPool .
@@ -206,7 +209,7 @@ func (m manager) IPPools(ctx context.Context) (*apiv3.IPPoolList, error) {
 }
 
 // RequestPool .
-func (m manager) GetPoolByCidr(ctx context.Context, cidr string) (types.Pool, error) {
+func (m manager) GetPoolByCIDR(ctx context.Context, cidr string) (types.Pool, error) {
 	var (
 		ipNet *caliconet.IPNet
 		pools *apiv3.IPPoolList
@@ -244,7 +247,7 @@ func (m manager) GetPoolByCidr(ctx context.Context, cidr string) (types.Pool, er
 }
 
 // RequestPools .
-func (m manager) GetPoolsByCidrs(ctx context.Context, cidrs []string) ([]types.Pool, error) {
+func (m manager) GetPoolsByCIDRS(ctx context.Context, cidrs []string) ([]types.Pool, error) {
 	var (
 		ipNets = make(map[string]*caliconet.IPNet)
 		pools  *apiv3.IPPoolList
@@ -355,5 +358,5 @@ func (m manager) GetPoolsByNetworkName(ctx context.Context, name string) ([]type
 	for _, config := range network.IPAM.Config {
 		cidrs = append(cidrs, config.Subnet)
 	}
-	return m.GetPoolsByCidrs(ctx, cidrs)
+	return m.GetPoolsByCIDRS(ctx, cidrs)
 }

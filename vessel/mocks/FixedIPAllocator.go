@@ -133,8 +133,8 @@ func (_m *FixedIPAllocator) GetDefaultPool(ipv6 bool) types.Pool {
 	return r0
 }
 
-// GetPoolByCidr provides a mock function with given fields: ctx, cidr
-func (_m *FixedIPAllocator) GetPoolByCidr(ctx context.Context, cidr string) (types.Pool, error) {
+// GetPoolByCIDR provides a mock function with given fields: ctx, cidr
+func (_m *FixedIPAllocator) GetPoolByCIDR(ctx context.Context, cidr string) (types.Pool, error) {
 	ret := _m.Called(ctx, cidr)
 
 	var r0 types.Pool
@@ -175,8 +175,8 @@ func (_m *FixedIPAllocator) GetPoolByID(ctx context.Context, poolID string) (typ
 	return r0, r1
 }
 
-// GetPoolsByCidrs provides a mock function with given fields: ctx, cidr
-func (_m *FixedIPAllocator) GetPoolsByCidrs(ctx context.Context, cidr []string) ([]types.Pool, error) {
+// GetPoolsByCIDRS provides a mock function with given fields: ctx, cidr
+func (_m *FixedIPAllocator) GetPoolsByCIDRS(ctx context.Context, cidr []string) ([]types.Pool, error) {
 	ret := _m.Called(ctx, cidr)
 
 	var r0 []types.Pool

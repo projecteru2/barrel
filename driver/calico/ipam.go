@@ -17,16 +17,14 @@ import (
 // Ipam .
 type Ipam struct {
 	vessel.CalicoIPAllocator
-	utils.ObjectLogger
+	utils.LoggerFactory
 }
 
 // NewIpam .
 func NewIpam(ipAllocator vessel.CalicoIPAllocator) Ipam {
 	return Ipam{
 		CalicoIPAllocator: ipAllocator,
-		ObjectLogger: utils.ObjectLogger{
-			ObjectName: "CalicoIPIpam",
-		},
+		LoggerFactory:     utils.NewObjectLogger("CalicoIPIpam"),
 	}
 }
 
@@ -75,7 +73,7 @@ func (ipam Ipam) RequestPool(request *pluginIpam.RequestPoolRequest) (*pluginIpa
 	// If a pool (subnet on the CLI) is specified, it must match one of the
 	// preconfigured Calico pools.
 	if request.Pool != "" {
-		if pool, err = ipam.GetPoolByID(context.Background(), request.Pool); err != nil {
+		if pool, err = ipam.GetPoolByCIDR(context.Background(), request.Pool); err != nil {
 			logger.Errorf("request calico pool error, %v", err)
 			return nil, err
 		}

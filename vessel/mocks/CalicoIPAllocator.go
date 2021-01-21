@@ -84,8 +84,8 @@ func (_m *CalicoIPAllocator) GetDefaultPool(ipv6 bool) types.Pool {
 	return r0
 }
 
-// GetPoolByCidr provides a mock function with given fields: ctx, cidr
-func (_m *CalicoIPAllocator) GetPoolByCidr(ctx context.Context, cidr string) (types.Pool, error) {
+// GetPoolByCIDR provides a mock function with given fields: ctx, cidr
+func (_m *CalicoIPAllocator) GetPoolByCIDR(ctx context.Context, cidr string) (types.Pool, error) {
 	ret := _m.Called(ctx, cidr)
 
 	var r0 types.Pool
@@ -126,8 +126,8 @@ func (_m *CalicoIPAllocator) GetPoolByID(ctx context.Context, poolID string) (ty
 	return r0, r1
 }
 
-// GetPoolsByCidrs provides a mock function with given fields: ctx, cidr
-func (_m *CalicoIPAllocator) GetPoolsByCidrs(ctx context.Context, cidr []string) ([]types.Pool, error) {
+// GetPoolsByCIDRS provides a mock function with given fields: ctx, cidr
+func (_m *CalicoIPAllocator) GetPoolsByCIDRS(ctx context.Context, cidr []string) ([]types.Pool, error) {
 	ret := _m.Called(ctx, cidr)
 
 	var r0 []types.Pool
