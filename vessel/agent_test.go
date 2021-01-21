@@ -23,7 +23,7 @@ func TestPollEvent(t *testing.T) {
 			ID: "containerID",
 			NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 				Networks: map[string]*dockerNetworkTypes.EndpointSettings{
-					"networkName": &dockerNetworkTypes.EndpointSettings{
+					"networkName": {
 						NetworkID:  "networkID",
 						EndpointID: "endpointID",
 						IPAddress:  "10.10.10.10",
@@ -98,7 +98,7 @@ func TestAgent(t *testing.T) {
 						ID: "anotherContainerID",
 						NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 							Networks: map[string]*dockerNetworkTypes.EndpointSettings{
-								"anotherNetworkName": &dockerNetworkTypes.EndpointSettings{
+								"anotherNetworkName": {
 									NetworkID:  "anotherNetworkID",
 									EndpointID: "anotherEndpointID",
 									IPAddress:  "10.10.20.10",
@@ -113,7 +113,7 @@ func TestAgent(t *testing.T) {
 					ID: "containerID",
 					NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 						Networks: map[string]*dockerNetworkTypes.EndpointSettings{
-							"networkName": &dockerNetworkTypes.EndpointSettings{
+							"networkName": {
 								NetworkID:  "networkID",
 								EndpointID: "endpointID",
 								IPAddress:  "10.10.10.10",
@@ -125,7 +125,7 @@ func TestAgent(t *testing.T) {
 					ID: "anotherContainerID",
 					NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 						Networks: map[string]*dockerNetworkTypes.EndpointSettings{
-							"anotherNetworkName": &dockerNetworkTypes.EndpointSettings{
+							"anotherNetworkName": {
 								NetworkID:  "anotherNetworkID",
 								EndpointID: "anotherEndpointID",
 								IPAddress:  "10.10.20.10",
@@ -233,14 +233,14 @@ func TestAgent(t *testing.T) {
 func mockAllocator() *mocks.CalicoIPAllocator {
 	allocator := mocks.CalicoIPAllocator{}
 	poolMap := map[string][]types.Pool{
-		"networkName": []types.Pool{
+		"networkName": {
 			{
 				CIDR:    "10.10.10.0/24",
 				Name:    "poolID",
 				Gateway: "",
 			},
 		},
-		"anotherNetworkName": []types.Pool{
+		"anotherNetworkName": {
 			{
 				CIDR:    "10.10.20.0/24",
 				Name:    "anotherPoolID",

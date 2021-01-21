@@ -19,21 +19,28 @@ type ContainerVessel interface {
 
 // Vessel .
 type Vessel interface {
+	NodeName() string
 	ContainerVessel() ContainerVessel
 	CalicoIPAllocator() CalicoIPAllocator
 	FixedIPAllocator() FixedIPAllocator
 }
 
 type vesselImpl struct {
+	nodeName         string
 	containerVessel  ContainerVessel
 	fixedIPAllocator FixedIPAllocator
 }
 
 // NewVessel .
-func NewVessel(cliv3 clientv3.Interface, dockerCli *dockerClient.Client, driverName string, stor store.Store) Vessel {
+func NewVessel(nodeName string, cliv3 clientv3.Interface, dockerCli *dockerClient.Client, driverName string, stor store.Store) Vessel {
 	return vesselImpl{
+		nodeName:         nodeName,
 		fixedIPAllocator: NewFixedIPAllocator(NewIPPoolManager(cliv3, dockerCli, driverName), stor),
 	}
+}
+
+func (impl vesselImpl) NodeName() string {
+	return impl.nodeName
 }
 
 func (impl vesselImpl) ContainerVessel() ContainerVessel {
