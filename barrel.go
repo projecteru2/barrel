@@ -98,7 +98,6 @@ func main() {
 			&cli.StringFlag{
 				Name:    "node-name",
 				Aliases: []string{"nm"},
-				Value:   "barrel",
 				Usage:   "node name",
 				EnvVars: []string{"BARREL_NODE_NAME"},
 			},
