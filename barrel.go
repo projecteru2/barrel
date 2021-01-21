@@ -59,8 +59,15 @@ func run(c *cli.Context) (err error) {
 	hostEnvVars := c.StringSlice("host")
 	log.Printf("hostEnvVars = %v", hostEnvVars)
 
+	nodeName := c.String("node-name")
+	if nodeName == "" {
+		if nodeName, err = os.Hostname(); err != nil {
+			return
+		}
+	}
+
 	barrel := app.Application{
-		NodeName:               c.String("node-name"),
+		NodeName:               nodeName,
 		Mode:                   strings.ToLower(c.String("mode")),
 		DockerGID:              int(dockerGid),
 		DockerDaemonUnixSocket: dockerdPath,
