@@ -120,10 +120,13 @@ func (app Application) defaultMode() ([]service.Service, error) {
 		services = append(services, agent)
 	}
 	services = append(services, proxyService{
-		Server:    barrelHttp.NewServer(docker.NewHandler(app.DockerDaemonUnixSocket, app.DialTimeout, vess)),
-		gid:       app.DockerGID,
-		tlsConfig: barrelHttp.TLSConfig{},
-		hosts:     app.Hosts,
+		Server: barrelHttp.NewServer(docker.NewHandler(app.DockerDaemonUnixSocket, app.DialTimeout, vess)),
+		gid:    app.DockerGID,
+		tlsConfig: barrelHttp.TLSConfig{
+			CertFile: app.CertFile,
+			KeyFile:  app.KeyFile,
+		},
+		hosts: app.Hosts,
 	},
 		pluginService{
 			ipam:   fixedIPDriver.NewIpam(vess.FixedIPAllocator()),
@@ -136,10 +139,13 @@ func (app Application) defaultMode() ([]service.Service, error) {
 func (app Application) proxyOnlyMode() ([]service.Service, error) {
 	return []service.Service{
 		proxyService{
-			Server:    barrelHttp.NewServer(docker.NewSimpleHandler(app.DockerDaemonUnixSocket, app.DialTimeout)),
-			gid:       app.DockerGID,
-			tlsConfig: barrelHttp.TLSConfig{},
-			hosts:     app.Hosts,
+			Server: barrelHttp.NewServer(docker.NewSimpleHandler(app.DockerDaemonUnixSocket, app.DialTimeout)),
+			gid:    app.DockerGID,
+			tlsConfig: barrelHttp.TLSConfig{
+				CertFile: app.CertFile,
+				KeyFile:  app.KeyFile,
+			},
+			hosts: app.Hosts,
 		},
 	}, nil
 }
