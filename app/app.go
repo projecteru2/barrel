@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"os/user"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -29,7 +31,6 @@ import (
 type Application struct {
 	NodeName               string
 	Mode                   string
-	DockerGID              int
 	DockerDaemonUnixSocket string
 	DockerAPIVersion       string
 	Hosts                  []string
@@ -100,6 +101,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 		stor      store.Store
 		agent     vessel.CNMAgent
 		services  []service.Service
+		gid       int
 		err       error
 	)
 	if apiConfig, err = app.getAPIConfig(); err != nil {
@@ -114,6 +116,9 @@ func (app Application) defaultMode() ([]service.Service, error) {
 	if stor, err = app.getEtcdClient(context.Background(), apiConfig); err != nil {
 		return nil, err
 	}
+	if gid, err = getDockerGid(); err != nil {
+		return nil, err
+	}
 	vess = vessel.NewHelper(vessel.NewVessel(app.NodeName, client, dockerCli, app.DriverName, stor), stor)
 	if app.EnableCNMAgent {
 		agent := vessel.NewAgent(vess, vessel.AgentConfig{})
@@ -121,7 +126,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 	}
 	services = append(services, proxyService{
 		Server: barrelHttp.NewServer(docker.NewHandler(app.DockerDaemonUnixSocket, app.DialTimeout, vess)),
-		gid:    app.DockerGID,
+		gid:    gid,
 		tlsConfig: barrelHttp.TLSConfig{
 			CertFile: app.CertFile,
 			KeyFile:  app.KeyFile,
@@ -137,10 +142,17 @@ func (app Application) defaultMode() ([]service.Service, error) {
 }
 
 func (app Application) proxyOnlyMode() ([]service.Service, error) {
+	var (
+		gid int
+		err error
+	)
+	if gid, err = getDockerGid(); err != nil {
+		return nil, err
+	}
 	return []service.Service{
 		proxyService{
 			Server: barrelHttp.NewServer(docker.NewSimpleHandler(app.DockerDaemonUnixSocket, app.DialTimeout)),
-			gid:    app.DockerGID,
+			gid:    gid,
 			tlsConfig: barrelHttp.TLSConfig{
 				CertFile: app.CertFile,
 				KeyFile:  app.KeyFile,
@@ -176,4 +188,20 @@ func (app Application) networkPluginOnlyMode() ([]service.Service, error) {
 			server: driver.NewPluginServer(app.DriverName, app.IpamDriverName),
 		},
 	}, nil
+}
+
+func getDockerGid() (int, error) {
+	var (
+		group     *user.Group
+		err       error
+		dockerGid int64
+	)
+	if group, err = user.LookupGroup("docker"); err != nil {
+		return 0, err
+	}
+	log.Printf("The Gid of group docker is %s", group.Gid)
+	if dockerGid, err = strconv.ParseInt(group.Gid, 10, 64); err != nil {
+		return 0, err
+	}
+	return int(dockerGid), nil
 }
