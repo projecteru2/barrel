@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/user"
-	"strconv"
 	"strings"
 	"time"
 
@@ -39,22 +37,12 @@ func setupLog(l string) error {
 func run(c *cli.Context) (err error) {
 	var (
 		dockerdPath = c.String("dockerd-path")
-		dockerGid   int64
 	)
 	utils.Initialize(c.Int("buffer-size"))
 	if err = setupLog(c.String("log-level")); err != nil {
 		return err
 	}
 	log.Printf("Hello Barrel, dockerdPath = %s", dockerdPath)
-
-	var group *user.Group
-	if group, err = user.LookupGroup("docker"); err != nil {
-		return
-	}
-	log.Printf("The Gid of group docker is %s", group.Gid)
-	if dockerGid, err = strconv.ParseInt(group.Gid, 10, 64); err != nil {
-		return
-	}
 
 	hostEnvVars := c.StringSlice("host")
 	log.Printf("hostEnvVars = %v", hostEnvVars)
@@ -69,7 +57,6 @@ func run(c *cli.Context) (err error) {
 	barrel := app.Application{
 		NodeName:               nodeName,
 		Mode:                   strings.ToLower(c.String("mode")),
-		DockerGID:              int(dockerGid),
 		DockerDaemonUnixSocket: dockerdPath,
 		DockerAPIVersion:       "1.32",
 		Hosts:                  hostEnvVars,
