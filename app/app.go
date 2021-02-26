@@ -29,7 +29,7 @@ import (
 
 // Application .
 type Application struct {
-	NodeName               string
+	HostName               string
 	Mode                   string
 	DockerDaemonUnixSocket string
 	DockerAPIVersion       string
@@ -37,6 +37,7 @@ type Application struct {
 	DriverName             string
 	IpamDriverName         string
 	DialTimeout            time.Duration
+	RequestTimeout         time.Duration
 	CertFile               string
 	KeyFile                string
 	ShutdownTimeout        time.Duration
@@ -113,13 +114,15 @@ func (app Application) defaultMode() ([]service.Service, error) {
 	if dockerCli, err = app.getDockerClient(); err != nil {
 		return nil, err
 	}
-	if stor, err = app.getEtcdClient(context.Background(), apiConfig); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), app.RequestTimeout)
+	defer cancel()
+	if stor, err = app.getEtcdClient(ctx, apiConfig); err != nil {
 		return nil, err
 	}
 	if gid, err = getDockerGid(); err != nil {
 		return nil, err
 	}
-	vess = vessel.NewHelper(vessel.NewVessel(app.NodeName, client, dockerCli, app.DriverName, stor), stor)
+	vess = vessel.NewHelper(vessel.NewVessel(app.HostName, client, dockerCli, app.DriverName, stor), stor)
 	if app.EnableCNMAgent {
 		agent := vessel.NewAgent(vess, vessel.AgentConfig{})
 		services = append(services, agent)
@@ -134,8 +137,8 @@ func (app Application) defaultMode() ([]service.Service, error) {
 		hosts: app.Hosts,
 	},
 		pluginService{
-			ipam:   fixedIPDriver.NewIpam(vess.FixedIPAllocator()),
-			driver: fixedIPDriver.NewDriver(client, dockerCli, agent),
+			ipam:   fixedIPDriver.NewIpam(vess.FixedIPAllocator(), app.RequestTimeout),
+			driver: fixedIPDriver.NewDriver(client, dockerCli, agent, app.HostName),
 			server: driver.NewPluginServer(app.DriverName, app.IpamDriverName),
 		})
 	return services, nil
@@ -180,11 +183,11 @@ func (app Application) networkPluginOnlyMode() ([]service.Service, error) {
 	if dockerCli, err = app.getDockerClient(); err != nil {
 		return nil, err
 	}
-	allocator = vessel.NewIPPoolManager(client, dockerCli, app.DriverName)
+	allocator = vessel.NewIPPoolManager(client, dockerCli, app.DriverName, app.HostName)
 	return []service.Service{
 		pluginService{
-			ipam:   calicoDriver.NewIpam(allocator),
-			driver: calicoDriver.NewDriver(client, dockerCli),
+			ipam:   calicoDriver.NewIpam(allocator, app.RequestTimeout),
+			driver: calicoDriver.NewDriver(client, dockerCli, app.HostName),
 			server: driver.NewPluginServer(app.DriverName, app.IpamDriverName),
 		},
 	}, nil

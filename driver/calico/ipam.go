@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	pluginIpam "github.com/docker/go-plugins-helpers/ipam"
 	caliconet "github.com/projectcalico/libcalico-go/lib/net"
@@ -18,13 +19,15 @@ import (
 type Ipam struct {
 	vessel.CalicoIPAllocator
 	utils.LoggerFactory
+	timeout time.Duration
 }
 
 // NewIpam .
-func NewIpam(ipAllocator vessel.CalicoIPAllocator) Ipam {
+func NewIpam(ipAllocator vessel.CalicoIPAllocator, timeout time.Duration) Ipam {
 	return Ipam{
 		CalicoIPAllocator: ipAllocator,
 		LoggerFactory:     utils.NewObjectLogger("CalicoIPIpam"),
+		timeout:           timeout,
 	}
 }
 
@@ -73,7 +76,9 @@ func (ipam Ipam) RequestPool(request *pluginIpam.RequestPoolRequest) (*pluginIpa
 	// If a pool (subnet on the CLI) is specified, it must match one of the
 	// preconfigured Calico pools.
 	if request.Pool != "" {
-		if pool, err = ipam.GetPoolByCIDR(context.Background(), request.Pool); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), ipam.timeout)
+		defer cancel()
+		if pool, err = ipam.GetPoolByCIDR(ctx, request.Pool); err != nil {
 			logger.Errorf("request calico pool error, %v", err)
 			return nil, err
 		}
@@ -111,8 +116,11 @@ func (ipam Ipam) RequestAddress(request *pluginIpam.RequestAddressRequest) (*plu
 	var (
 		address string
 		err     error
-		ctx     = context.Background()
+		ctx     context.Context
+		cancel  func()
 	)
+	ctx, cancel = context.WithTimeout(context.Background(), ipam.timeout)
+	defer cancel()
 
 	if request.Address == "" {
 		var ipAddr types.IPAddress
@@ -135,7 +143,9 @@ func (ipam Ipam) RequestAddress(request *pluginIpam.RequestAddressRequest) (*plu
 
 // ReleaseAddress .
 func (ipam Ipam) ReleaseAddress(request *pluginIpam.ReleaseAddressRequest) error {
-	return ipam.UnallocIP(context.Background(), types.IP{PoolID: request.PoolID, Address: request.Address})
+	ctx, cancel := context.WithTimeout(context.Background(), ipam.timeout)
+	defer cancel()
+	return ipam.UnallocIP(ctx, types.IP{PoolID: request.PoolID, Address: request.Address})
 }
 
 // IPv4ToCidr .

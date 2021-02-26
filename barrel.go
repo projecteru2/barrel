@@ -47,15 +47,15 @@ func run(c *cli.Context) (err error) {
 	hostEnvVars := c.StringSlice("host")
 	log.Printf("hostEnvVars = %v", hostEnvVars)
 
-	nodeName := c.String("node-name")
-	if nodeName == "" {
-		if nodeName, err = os.Hostname(); err != nil {
+	hostname := c.String("hostname")
+	if hostname == "" {
+		if hostname, err = os.Hostname(); err != nil {
 			return
 		}
 	}
 
 	barrel := app.Application{
-		NodeName:               nodeName,
+		HostName:               hostname,
 		Mode:                   strings.ToLower(c.String("mode")),
 		DockerDaemonUnixSocket: dockerdPath,
 		DockerAPIVersion:       "1.32",
@@ -63,6 +63,7 @@ func run(c *cli.Context) (err error) {
 		DriverName:             driver.DriverName,
 		IpamDriverName:         driver.DriverName + driver.IpamSuffix,
 		DialTimeout:            time.Duration(6) * time.Second,
+		RequestTimeout:         c.Duration("request-timeout"),
 		CertFile:               c.String("tls-cert"),
 		KeyFile:                c.String("tls-key"),
 		ShutdownTimeout:        time.Duration(30) * time.Second,
@@ -83,10 +84,9 @@ func main() {
 		Version: versioninfo.VERSION,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "node-name",
-				Aliases: []string{"nm"},
-				Usage:   "node name",
-				EnvVars: []string{"BARREL_NODE_NAME"},
+				Name:    "hostname",
+				Usage:   "hostname",
+				EnvVars: []string{"HOSTNAME"},
 			},
 			&cli.StringFlag{
 				Name:    "mode",
@@ -131,6 +131,11 @@ func main() {
 				Name:  "dial-timeout",
 				Usage: "for dial timeout",
 				Value: time.Second * 2,
+			},
+			&cli.DurationFlag{
+				Name:  "request-timeout",
+				Usage: "for barrel request services(docker, etcd, etc.) timeout",
+				Value: time.Second * 120,
 			},
 			&cli.StringFlag{
 				Name:    "log-level",
