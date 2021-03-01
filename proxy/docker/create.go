@@ -280,7 +280,7 @@ func (handler containerCreateHandler) writeServerResponse(
 	}
 	if err = handler.vess.InitContainerInfoRecord(
 		context.Background(),
-		types.ContainerInfo{ID: body.ID, HostName: handler.vess.NodeName(), Addresses: fixedIPAddress},
+		types.ContainerInfo{ID: body.ID, HostName: handler.vess.Hostname(), Addresses: fixedIPAddress},
 	); err != nil {
 		logger.Errorf("mark fixed-ip(%s) for container(%s) failed %v", fixedIPAddress, body.ID, err)
 	}

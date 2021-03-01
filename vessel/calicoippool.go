@@ -12,7 +12,6 @@ import (
 	calicoipam "github.com/projectcalico/libcalico-go/lib/ipam"
 	caliconet "github.com/projectcalico/libcalico-go/lib/net"
 	"github.com/projectcalico/libcalico-go/lib/options"
-	osutils "github.com/projectcalico/libnetwork-plugin/utils/os"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/projecteru2/barrel/types"
@@ -39,26 +38,23 @@ type manager struct {
 	utils.LoggerFactory
 	driverName string
 	dockerCli  *dockerClient.Client
+	hostname   string
 }
 
 // NewIPPoolManager .
-func NewIPPoolManager(cliv3 clientv3.Interface, dockerCli *dockerClient.Client, driverName string) CalicoIPAllocator {
+func NewIPPoolManager(cliv3 clientv3.Interface, dockerCli *dockerClient.Client, driverName string, hostname string) CalicoIPAllocator {
 	return manager{
 		cliv3:         cliv3,
 		dockerCli:     dockerCli,
 		driverName:    driverName,
 		LoggerFactory: utils.NewObjectLogger("networkAgentImpl"),
+		hostname:      hostname,
 	}
 }
 
 // AssignIP .
 func (m manager) AllocIP(ctx context.Context, ip types.IP) error {
 	var err error
-
-	var hostname string
-	if hostname, err = osutils.GetHostname(); err != nil {
-		return err
-	}
 
 	netIP := net.ParseIP(ip.Address)
 	// Docker allows the users to specify any address.
@@ -67,7 +63,7 @@ func (m manager) AllocIP(ctx context.Context, ip types.IP) error {
 	log.Debugln("Reserving a specific address in Calico pools")
 	ipArgs := calicoipam.AssignIPArgs{
 		IP:       caliconet.IP{IP: netIP},
-		Hostname: hostname,
+		Hostname: m.hostname,
 	}
 
 	if err = m.cliv3.IPAM().AssignIP(ctx, ipArgs); err != nil {
@@ -83,11 +79,6 @@ func (m manager) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAd
 
 	// No address requested, so auto assign from our pools.
 	log.Infof("Auto assigning IP from Calico pools, poolID = %s", poolID)
-
-	var hostname string
-	if hostname, err = osutils.GetHostname(); err != nil {
-		return types.IPAddress{}, err
-	}
 
 	// If the poolID isn't the fixed one then find the pool to assign from.
 	// poolV4 defaults to nil to assign from across all pools.
@@ -139,7 +130,7 @@ func (m manager) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAd
 		calicoipam.AutoAssignArgs{
 			Num4:      numIPv4,
 			Num6:      numIPv6,
-			Hostname:  hostname,
+			Hostname:  m.hostname,
 			IPv4Pools: poolV4,
 			IPv6Pools: poolV6,
 		},
