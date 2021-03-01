@@ -47,15 +47,15 @@ func run(c *cli.Context) (err error) {
 	hostEnvVars := c.StringSlice("host")
 	log.Printf("hostEnvVars = %v", hostEnvVars)
 
-	nodeName := c.String("node-name")
-	if nodeName == "" {
-		if nodeName, err = os.Hostname(); err != nil {
+	hostname := c.String("hostname")
+	if hostname == "" {
+		if hostname, err = os.Hostname(); err != nil {
 			return
 		}
 	}
 
 	barrel := app.Application{
-		NodeName:               nodeName,
+		Hostname:               hostname,
 		Mode:                   strings.ToLower(c.String("mode")),
 		DockerDaemonUnixSocket: dockerdPath,
 		DockerAPIVersion:       "1.32",
@@ -83,10 +83,10 @@ func main() {
 		Version: versioninfo.VERSION,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "node-name",
-				Aliases: []string{"nm"},
-				Usage:   "node name",
-				EnvVars: []string{"BARREL_NODE_NAME"},
+				Name:    "hostname",
+				Aliases: []string{"h"},
+				Usage:   "hostname",
+				EnvVars: []string{"HOSTNAME"},
 			},
 			&cli.StringFlag{
 				Name:    "mode",
