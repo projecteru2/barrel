@@ -20,9 +20,10 @@ func NewDriver(
 	client clientv3.Interface,
 	dockerCli *dockerClient.Client,
 	agent vessel.CNMAgent,
+	hostname string,
 ) Driver {
 	return Driver{
-		Driver: calicoDriver.NewDriver(client, dockerCli),
+		Driver: calicoDriver.NewDriver(client, dockerCli, hostname),
 		agent:  agent,
 	}
 }

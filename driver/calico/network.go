@@ -28,7 +28,6 @@ import (
 	logutils "github.com/projectcalico/libnetwork-plugin/utils/log"
 	mathutils "github.com/projectcalico/libnetwork-plugin/utils/math"
 	"github.com/projectcalico/libnetwork-plugin/utils/netns"
-	osutils "github.com/projectcalico/libnetwork-plugin/utils/os"
 	netlink "github.com/vishvananda/netlink"
 
 	"github.com/projecteru2/barrel/types"
@@ -41,6 +40,7 @@ type Driver struct {
 	containerName  string
 	orchestratorID string
 	namespace      string
+	hostname       string
 
 	ifPrefix string
 
@@ -58,12 +58,8 @@ type Driver struct {
 func NewDriver(
 	client clientv3.Interface,
 	dockerCli *dockerClient.Client,
+	hostname string,
 ) Driver {
-	hostname, err := osutils.GetHostname()
-	if err != nil {
-		log.Fatalf("Hostname fetching error, %v", err)
-	}
-
 	driver := Driver{
 		client:    client,
 		dockerCli: dockerCli,
@@ -74,6 +70,7 @@ func NewDriver(
 		containerName:  "libnetwork",
 		orchestratorID: "libnetwork",
 		namespace:      hostname,
+		hostname:       hostname,
 
 		ifPrefix:         IFPrefix,
 		DummyIPV4Nexthop: "169.254.1.1",
@@ -254,12 +251,6 @@ func (d Driver) DeleteNetwork(request *network.DeleteNetworkRequest) error {
 // CreateEndpoint .
 func (d Driver) CreateEndpoint(request *network.CreateEndpointRequest) (*network.CreateEndpointResponse, error) {
 	ctx := context.Background()
-	hostname, err := osutils.GetHostname()
-	if err != nil {
-		err = errors.Annotate(err, "Hostname fetching error")
-		log.Errorln(err)
-		return nil, err
-	}
 
 	log.Debugf("Creating endpoint %v\n", request.EndpointID)
 	if request.Interface.Address == "" && request.Interface.AddressIPv6 == "" {
@@ -293,7 +284,7 @@ func (d Driver) CreateEndpoint(request *network.CreateEndpointRequest) (*network
 		addresses = append(addresses, caliconet.IPNet{IPNet: *ipnet})
 	}
 
-	wepName, err := d.generateEndpointName(hostname, request.EndpointID)
+	wepName, err := d.generateEndpointName(d.hostname, request.EndpointID)
 	if err != nil {
 		log.Errorln(err)
 		return nil, err
@@ -304,7 +295,7 @@ func (d Driver) CreateEndpoint(request *network.CreateEndpointRequest) (*network
 	// endpoint.ObjectMeta.Namespace = fmt.Sprintf("%s.%s", d.orchestratorID, networkName)
 	endpoint.ObjectMeta.Namespace = d.namespace
 	endpoint.Spec.Endpoint = request.EndpointID
-	endpoint.Spec.Node = hostname
+	endpoint.Spec.Node = d.hostname
 	endpoint.Spec.Orchestrator = d.orchestratorID
 	endpoint.Spec.Workload = d.containerName
 	endpoint.Spec.InterfaceName = "cali" + request.EndpointID[:mathutils.MinInt(11, len(request.EndpointID))]
@@ -392,14 +383,7 @@ func (d Driver) CreateEndpoint(request *network.CreateEndpointRequest) (*network
 func (d Driver) DeleteEndpoint(request *network.DeleteEndpointRequest) error {
 	log.Debugf("Removing endpoint %v\n", request.EndpointID)
 
-	hostname, err := osutils.GetHostname()
-	if err != nil {
-		err = errors.Annotatef(err, "Hostname fetching error")
-		log.Errorln(err)
-		return err
-	}
-
-	wepName, err := d.generateEndpointName(hostname, request.EndpointID)
+	wepName, err := d.generateEndpointName(d.hostname, request.EndpointID)
 	if err != nil {
 		log.Errorln(err)
 		return err
@@ -439,13 +423,8 @@ func (d Driver) Join(request *network.JoinRequest) (*network.JoinResponse, error
 	}
 
 	// 2) update workloads
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Errorln(err)
-		return nil, err
-	}
 	weps := d.client.WorkloadEndpoints()
-	wepName, err := d.generateEndpointName(hostname, request.EndpointID)
+	wepName, err := d.generateEndpointName(d.hostname, request.EndpointID)
 	if err != nil {
 		log.Errorln(err)
 		return nil, err

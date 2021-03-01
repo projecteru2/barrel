@@ -29,7 +29,7 @@ import (
 
 // Application .
 type Application struct {
-	NodeName               string
+	Hostname               string
 	Mode                   string
 	DockerDaemonUnixSocket string
 	DockerAPIVersion       string
@@ -119,7 +119,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 	if gid, err = getDockerGid(); err != nil {
 		return nil, err
 	}
-	vess = vessel.NewHelper(vessel.NewVessel(app.NodeName, client, dockerCli, app.DriverName, stor), stor)
+	vess = vessel.NewHelper(vessel.NewVessel(app.Hostname, client, dockerCli, app.DriverName, stor), stor)
 	if app.EnableCNMAgent {
 		agent := vessel.NewAgent(vess, vessel.AgentConfig{})
 		services = append(services, agent)
@@ -135,7 +135,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 	},
 		pluginService{
 			ipam:   fixedIPDriver.NewIpam(vess.FixedIPAllocator()),
-			driver: fixedIPDriver.NewDriver(client, dockerCli, agent),
+			driver: fixedIPDriver.NewDriver(client, dockerCli, agent, app.Hostname),
 			server: driver.NewPluginServer(app.DriverName, app.IpamDriverName),
 		})
 	return services, nil
@@ -180,11 +180,11 @@ func (app Application) networkPluginOnlyMode() ([]service.Service, error) {
 	if dockerCli, err = app.getDockerClient(); err != nil {
 		return nil, err
 	}
-	allocator = vessel.NewIPPoolManager(client, dockerCli, app.DriverName)
+	allocator = vessel.NewIPPoolManager(client, dockerCli, app.DriverName, app.Hostname)
 	return []service.Service{
 		pluginService{
 			ipam:   calicoDriver.NewIpam(allocator),
-			driver: calicoDriver.NewDriver(client, dockerCli),
+			driver: calicoDriver.NewDriver(client, dockerCli, app.Hostname),
 			server: driver.NewPluginServer(app.DriverName, app.IpamDriverName),
 		},
 	}, nil
