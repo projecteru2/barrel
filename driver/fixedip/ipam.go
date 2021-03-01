@@ -2,6 +2,7 @@ package fixedip
 
 import (
 	"context"
+	"time"
 
 	calicoDriver "github.com/projecteru2/barrel/driver/calico"
 	"github.com/projecteru2/barrel/types"
@@ -16,16 +17,19 @@ type Ipam struct {
 	calicoDriver.Ipam
 	utils.LoggerFactory
 	vessel.FixedIPAllocator
+	requestTimeout time.Duration
 }
 
 // NewIpam .
 func NewIpam(
 	allocator vessel.FixedIPAllocator,
+	requestTimeout time.Duration,
 ) pluginIpam.Ipam {
 	return Ipam{
-		Ipam:             calicoDriver.NewIpam(allocator),
+		Ipam:             calicoDriver.NewIpam(allocator, requestTimeout),
 		LoggerFactory:    utils.NewObjectLogger("FixedIPIpam"),
 		FixedIPAllocator: allocator,
+		requestTimeout:   requestTimeout,
 	}
 }
 
@@ -43,8 +47,10 @@ func (ipam Ipam) RequestAddress(request *pluginIpam.RequestAddressRequest) (*plu
 		return ipam.Ipam.RequestAddress(request)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), ipam.requestTimeout)
+	defer cancel()
 	if err := ipam.AssignFixedIP(
-		context.Background(),
+		ctx,
 		types.IP{
 			PoolID:  request.PoolID,
 			Address: request.Address,
@@ -64,8 +70,10 @@ func (ipam Ipam) RequestAddress(request *pluginIpam.RequestAddressRequest) (*plu
 
 // ReleaseAddress .
 func (ipam Ipam) ReleaseAddress(request *pluginIpam.ReleaseAddressRequest) error {
+	ctx, cancel := context.WithTimeout(context.Background(), ipam.requestTimeout)
+	defer cancel()
 	if err := ipam.UnassignFixedIP(
-		context.Background(),
+		ctx,
 		types.IP{
 			PoolID:  request.PoolID,
 			Address: request.Address,

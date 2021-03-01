@@ -1,6 +1,8 @@
 package fixedip
 
 import (
+	"time"
+
 	dockerClient "github.com/docker/docker/client"
 	"github.com/docker/go-plugins-helpers/network"
 	"github.com/projectcalico/libcalico-go/lib/clientv3"
@@ -21,9 +23,10 @@ func NewDriver(
 	dockerCli *dockerClient.Client,
 	agent vessel.CNMAgent,
 	hostname string,
+	requestTimeout time.Duration,
 ) Driver {
 	return Driver{
-		Driver: calicoDriver.NewDriver(client, dockerCli, hostname),
+		Driver: calicoDriver.NewDriver(client, dockerCli, hostname, requestTimeout),
 		agent:  agent,
 	}
 }

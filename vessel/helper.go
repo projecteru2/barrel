@@ -78,7 +78,7 @@ func (helper Helper) ReleaseContainerAddresses(ctx context.Context, containerID 
 	logger.Infof("Release reserved IP by tied containerID(%s)", containerID)
 
 	container := types.ContainerInfo{ID: containerID, HostName: helper.Hostname()}
-	if present, err := helper.GetAndDelete(context.Background(), &codec.ContainerInfoCodec{Info: &container}); err != nil {
+	if present, err := helper.GetAndDelete(ctx, &codec.ContainerInfoCodec{Info: &container}); err != nil {
 		return err
 	} else if !present {
 		logger.Infof("the container(%s) is not exists, will do nothing\n", containerID)
