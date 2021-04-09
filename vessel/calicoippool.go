@@ -126,7 +126,7 @@ func (m manager) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAd
 	var IPsV4 []caliconet.IPNet
 	var IPsV6 []caliconet.IPNet
 	if IPsV4, IPsV6, err = m.cliv3.IPAM().AutoAssign(
-		context.Background(),
+		ctx,
 		calicoipam.AutoAssignArgs{
 			Num4:      numIPv4,
 			Num6:      numIPv6,

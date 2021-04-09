@@ -63,6 +63,7 @@ func run(c *cli.Context) (err error) {
 		DriverName:             driver.DriverName,
 		IpamDriverName:         driver.DriverName + driver.IpamSuffix,
 		DialTimeout:            time.Duration(6) * time.Second,
+		RequestTimeout:         c.Duration("request-timeout"),
 		CertFile:               c.String("tls-cert"),
 		KeyFile:                c.String("tls-key"),
 		ShutdownTimeout:        time.Duration(30) * time.Second,
@@ -84,7 +85,6 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "hostname",
-				Aliases: []string{"h"},
 				Usage:   "hostname",
 				EnvVars: []string{"HOSTNAME"},
 			},
@@ -131,6 +131,11 @@ func main() {
 				Name:  "dial-timeout",
 				Usage: "for dial timeout",
 				Value: time.Second * 2,
+			},
+			&cli.DurationFlag{
+				Name:  "request-timeout",
+				Usage: "for barrel request services(docker, etcd, etc.) timeout",
+				Value: time.Second * 120,
 			},
 			&cli.StringFlag{
 				Name:    "log-level",

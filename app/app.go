@@ -37,6 +37,7 @@ type Application struct {
 	DriverName             string
 	IpamDriverName         string
 	DialTimeout            time.Duration
+	RequestTimeout         time.Duration
 	CertFile               string
 	KeyFile                string
 	ShutdownTimeout        time.Duration
@@ -113,7 +114,9 @@ func (app Application) defaultMode() ([]service.Service, error) {
 	if dockerCli, err = app.getDockerClient(); err != nil {
 		return nil, err
 	}
-	if stor, err = app.getEtcdClient(context.Background(), apiConfig); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), app.RequestTimeout)
+	defer cancel()
+	if stor, err = app.getEtcdClient(ctx, apiConfig); err != nil {
 		return nil, err
 	}
 	if gid, err = getDockerGid(); err != nil {
@@ -134,8 +137,8 @@ func (app Application) defaultMode() ([]service.Service, error) {
 		hosts: app.Hosts,
 	},
 		pluginService{
-			ipam:   fixedIPDriver.NewIpam(vess.FixedIPAllocator()),
-			driver: fixedIPDriver.NewDriver(client, dockerCli, agent, app.Hostname),
+			ipam:   fixedIPDriver.NewIpam(vess.FixedIPAllocator(), app.RequestTimeout),
+			driver: fixedIPDriver.NewDriver(client, dockerCli, agent, app.Hostname, app.RequestTimeout),
 			server: driver.NewPluginServer(app.DriverName, app.IpamDriverName),
 		})
 	return services, nil
@@ -183,8 +186,8 @@ func (app Application) networkPluginOnlyMode() ([]service.Service, error) {
 	allocator = vessel.NewIPPoolManager(client, dockerCli, app.DriverName, app.Hostname)
 	return []service.Service{
 		pluginService{
-			ipam:   calicoDriver.NewIpam(allocator),
-			driver: calicoDriver.NewDriver(client, dockerCli, app.Hostname),
+			ipam:   calicoDriver.NewIpam(allocator, app.RequestTimeout),
+			driver: calicoDriver.NewDriver(client, dockerCli, app.Hostname, app.RequestTimeout),
 			server: driver.NewPluginServer(app.DriverName, app.IpamDriverName),
 		},
 	}, nil
