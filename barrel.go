@@ -13,6 +13,7 @@ import (
 
 	"github.com/projecteru2/barrel/app"
 	"github.com/projecteru2/barrel/driver"
+	"github.com/projecteru2/barrel/resources"
 	"github.com/projecteru2/barrel/utils"
 	"github.com/projecteru2/barrel/versioninfo"
 )
@@ -46,6 +47,8 @@ func run(c *cli.Context) (err error) {
 
 	hostEnvVars := c.StringSlice("host")
 	log.Printf("hostEnvVars = %v", hostEnvVars)
+
+	resources.Init(c.StringSlice("res-path"))
 
 	hostname := c.String("hostname")
 	if hostname == "" {
@@ -108,6 +111,11 @@ func main() {
 				Value:   cli.NewStringSlice("unix:///var/run/barrel.sock"),
 				Usage:   "host, can set multiple times",
 				EnvVars: []string{"BARREL_HOSTS"},
+			},
+			&cli.StringSliceFlag{
+				Name:    "res-path",
+				Usage:   "resource paths, can set multiple times",
+				EnvVars: []string{"BARREL_RESOURCE_PATHS"},
 			},
 			&cli.StringFlag{
 				Name:    "tls-cert",
