@@ -4,10 +4,12 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"strconv"
 
 	"github.com/juju/errors"
 	barrelHttp "github.com/projecteru2/barrel/http"
 	"github.com/projecteru2/barrel/proxy"
+	"github.com/projecteru2/barrel/resources"
 	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
 	"github.com/projecteru2/barrel/vessel"
@@ -32,8 +34,9 @@ func newContainerDeleteHandler(client barrelHttp.Client, vess vessel.Helper, ins
 }
 
 type containerDeleteRequest struct {
-	version    string
-	identifier string
+	version        string
+	identifier     string
+	removeVolumens bool
 }
 
 // Handle .
@@ -84,7 +87,7 @@ func (handler containerDeleteHandler) Handle(ctx proxy.HandleContext, response h
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotFound {
-		go handler.releaseReservedIP(containerDeleteRequest.identifier, containerInfo.ID)
+		go handler.releaseResources(containerInfo, containerDeleteRequest.removeVolumens)
 	}
 
 	if err = utils.Forward(resp, response); err != nil {
@@ -92,20 +95,33 @@ func (handler containerDeleteHandler) Handle(ctx proxy.HandleContext, response h
 	}
 }
 
-func (handler containerDeleteHandler) releaseReservedIP(idOrName string, fullID string) {
+func (handler containerDeleteHandler) releaseResources(containerInfo containerInspectResult, removeVolumens bool) {
+	handler.releaseReservedIP(containerInfo.ID)
+	if removeVolumens {
+		handler.releaseMounts(containerInfo)
+	}
+}
+
+func (handler containerDeleteHandler) releaseMounts(containerInfo containerInspectResult) {
+	logger := handler.Logger("releaseMounts")
+
+	for _, mnt := range containerInfo.Mounts {
+		if mnt.Source != "" {
+			if err := resources.RecycleResources(logger, mnt.Source); err != nil {
+				logger.Errorf("remove mount error, source = %s", mnt.Source)
+			}
+		}
+	}
+}
+
+func (handler containerDeleteHandler) releaseReservedIP(id string) {
 	logger := handler.Logger("releaseReservedIP")
 
-	if fullID != "" {
-		logger.Infof("release reserved IP by fullID(%s)", fullID)
-		handler.releaseReservedIPByTiedContainerIDIfIdle(fullID)
-		return
+	if id == "" {
+		logger.Error("can't release container, id is empty")
 	}
-	if idOrName != "" && len(idOrName) == 64 {
-		logger.Infof("release reserved IP by idOrName(%s) as fullID", idOrName)
-		handler.releaseReservedIPByTiedContainerIDIfIdle(idOrName)
-		return
-	}
-	logger.Errorf("can't release container(%s) by id prefix or name", idOrName)
+	logger.Infof("release reserved IP by id(%s)", id)
+	handler.releaseReservedIPByTiedContainerIDIfIdle(id)
 }
 
 func (handler containerDeleteHandler) releaseReservedIPByTiedContainerIDIfIdle(fullID string) {
@@ -124,9 +140,20 @@ func (handler containerDeleteHandler) match(request *http.Request) (containerDel
 		if len(subMatches) > 2 {
 			req.version = subMatches[1]
 			req.identifier = subMatches[2]
+			req.removeVolumens = parseBoolFromQuery(request, "v", false)
+
 			handler.Logger("match").Debugf("docker api version = %s", req.version)
 			return req, true
 		}
 	}
 	return req, false
+}
+
+func parseBoolFromQuery(request *http.Request, key string, defVal bool) bool {
+	if values, ok := request.URL.Query()[key]; ok {
+		if removeVolumens, err := strconv.ParseBool(values[0]); err == nil {
+			return removeVolumens
+		}
+	}
+	return defVal
 }
