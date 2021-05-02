@@ -22,7 +22,7 @@ var (
 	// ErrWrongAPIVersion .
 	ErrWrongAPIVersion = errors.New("api version must not be null")
 	// ErrContainerNotExists .
-	ErrContainerNotExists = errors.New("container is not exists")
+	ErrContainerNotExists = errors.New("container not exists")
 	// ErrUnsupervisedNetwork .
 	ErrUnsupervisedNetwork = errors.New("unsupervised network")
 	// ErrConfiguredPoolUnfound .

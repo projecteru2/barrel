@@ -78,16 +78,3 @@ func writeErrorResponse(res http.ResponseWriter, logger utils.Logger, err error,
 		logger.Errorf("write %s error response failed %v", label, err)
 	}
 }
-
-func writeServerResponse(response http.ResponseWriter, logger utils.Logger, statusCode int, message string) {
-	if err := utils.WriteHTTPJSONResponse(
-		response,
-		statusCode,
-		nil,
-		utils.HTTPSimpleMessageResponseBody{
-			Message: message,
-		},
-	); err != nil {
-		logger.Errorf("write response failed %v", err)
-	}
-}

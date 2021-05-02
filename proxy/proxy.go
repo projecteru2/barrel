@@ -5,10 +5,9 @@ import (
 	"net"
 	"net/http"
 
-	log "github.com/sirupsen/logrus"
-
 	barrelHttp "github.com/projecteru2/barrel/http"
 	"github.com/projecteru2/barrel/utils"
+	"github.com/projecteru2/barrel/utils/log"
 )
 
 // HandleContext .
@@ -116,16 +115,16 @@ func doLinkConn(response http.ResponseWriter, resp *http.Response, hijacker http
 		resp.Header,
 		nil,
 	); err != nil {
-		log.Errorf("[doLinkConn] write StatusSwitchingProtocols failed %v", err)
+		log.WithError(err).WithField("func", "doLinkConn").Error("write StatusSwitchingProtocols failed")
 		return
 	}
 	var conn net.Conn
-	log.Debug("[doLinkConn] Hijack server http connection")
+	log.WithField("func", "doLinkConn").Debug("Hijack server http connection")
 	if conn, _, err = hijacker.Hijack(); err != nil {
-		log.Errorf("[doLinkConn] Hijack ServerResponseWriter failed %v", err)
+		log.WithError(err).WithField("func", "doLinkConn").Error("Hijack ServerResponseWriter failed")
 		return
 	}
 	defer utils.Link(conn, readWriteCloser)
 	// link client conn and server conn
-	log.Debug("[doLinkConn] link connection")
+	log.WithCaller().Debug("Link connection")
 }

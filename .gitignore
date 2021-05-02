@@ -2,7 +2,7 @@
 target
 dist
 cert/
-barrel
+/barrel
 eru-barrel
 vendor/*
 .mypy_cache

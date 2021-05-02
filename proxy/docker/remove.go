@@ -5,32 +5,25 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/juju/errors"
+
+	dockerContainer "github.com/projecteru2/barrel/docker/container"
 	barrelHttp "github.com/projecteru2/barrel/http"
 	"github.com/projecteru2/barrel/proxy"
-	"github.com/projecteru2/barrel/resources"
 	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
+	"github.com/projecteru2/barrel/utils/log"
 	"github.com/projecteru2/barrel/vessel"
 )
 
 var regexDeleteContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/([a-zA-Z0-9][a-zA-Z0-9_.-]*)(\?.*)?`)
 
 type containerDeleteHandler struct {
-	utils.LoggerFactory
-	inspectAgent containerInspectAgent
-	client       barrelHttp.Client
-	vessel.Helper
-}
-
-func newContainerDeleteHandler(client barrelHttp.Client, vess vessel.Helper, inspectAgent containerInspectAgent) proxy.RequestHandler {
-	return containerDeleteHandler{
-		LoggerFactory: utils.NewObjectLogger("containerDeleteHandler"),
-		client:        client,
-		Helper:        vess,
-		inspectAgent:  inspectAgent,
-	}
+	client         barrelHttp.Client
+	res            vessel.ResourceManager
+	recycleTimeout time.Duration
 }
 
 type containerDeleteRequest struct {
@@ -39,10 +32,16 @@ type containerDeleteRequest struct {
 	removeVolumens bool
 }
 
+func newContainerDeleteHandler(client barrelHttp.Client, res vessel.ResourceManager, recycleTimeout time.Duration) proxy.RequestHandler {
+	return containerDeleteHandler{
+		client:         client,
+		res:            res,
+		recycleTimeout: recycleTimeout,
+	}
+}
+
 // Handle .
 func (handler containerDeleteHandler) Handle(ctx proxy.HandleContext, response http.ResponseWriter, request *http.Request) {
-	logger := handler.Logger("Handle")
-
 	var (
 		containerDeleteRequest containerDeleteRequest
 		matched                bool
@@ -51,85 +50,54 @@ func (handler containerDeleteHandler) Handle(ctx proxy.HandleContext, response h
 		ctx.Next()
 		return
 	}
-	logger.Debug("container remove request")
+	log.Debug("container remove request")
 
 	var (
-		err           error
-		containerInfo containerInspectResult
+		err     error
+		cont    *dockerContainer.Container
+		inspect = dockerContainer.InspectContainer{
+			Client:              handler.client,
+			ContainerIdentifier: containerDeleteRequest.identifier,
+			APIVersion:          containerDeleteRequest.version,
+		}
 	)
 
-	if containerInfo, err = handler.inspectAgent.Inspect(
-		containerDeleteRequest.identifier,
-		containerDeleteRequest.version,
-	); err != nil {
-		logger.Errorf("get full container id failed %v", err)
-		if rootErr := errors.Cause(err); rootErr == types.ErrContainerNotExists {
-			writeServerResponse(response, logger, http.StatusNotFound, err.Error())
-		} else {
-			writeServerResponse(response, logger, http.StatusInternalServerError, "inspect container before remove error")
-		}
-		return
-	}
-
-	var resp *http.Response
-	if resp, err = handler.client.Request(request); err != nil {
-		logger.Errorf("request failed %v", err)
-		if err := utils.WriteBadGateWayResponse(
-			response,
-			utils.HTTPSimpleMessageResponseBody{
-				Message: "send container remove request to docker socket error",
-			},
-		); err != nil {
-			logger.Errorf("write response failed %v", err)
-		}
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotFound {
-		go handler.releaseResources(containerInfo, containerDeleteRequest.removeVolumens)
-	}
-
-	if err = utils.Forward(resp, response); err != nil {
-		logger.Errorf("forward failed %v", err)
-	}
-}
-
-func (handler containerDeleteHandler) releaseResources(containerInfo containerInspectResult, removeVolumens bool) {
-	handler.releaseReservedIP(containerInfo.ID)
-	if removeVolumens {
-		handler.releaseMounts(containerInfo)
-	}
-}
-
-func (handler containerDeleteHandler) releaseMounts(containerInfo containerInspectResult) {
-	logger := handler.Logger("releaseMounts")
-
-	for _, mnt := range containerInfo.Mounts {
-		if mnt.Source != "" {
-			if err := resources.RecycleResources(logger, mnt.Source); err != nil {
-				logger.Errorf("remove mount error, source = %s", mnt.Source)
+	if cont, err = inspect.Inspect(); err != nil {
+		log.WithError(err).Error("Get container info error")
+		logEntry := log.WithCaller()
+		writeServerResponse := func(response http.ResponseWriter, statusCode int, message string) {
+			if err := utils.WriteHTTPJSONResponse(
+				response,
+				statusCode,
+				nil,
+				utils.HTTPSimpleMessageResponseBody{
+					Message: message,
+				},
+			); err != nil {
+				logEntry.WithError(err).Error("Handle")
 			}
 		}
+		if rootErr := errors.Cause(err); rootErr == types.ErrContainerNotExists {
+			writeServerResponse(response, http.StatusNotFound, err.Error())
+		} else {
+			writeServerResponse(response, http.StatusInternalServerError, "inspect container before remove error")
+		}
+		return
 	}
-}
 
-func (handler containerDeleteHandler) releaseReservedIP(id string) {
-	logger := handler.Logger("releaseReservedIP")
-
-	if id == "" {
-		logger.Error("can't release container, id is empty")
+	del := containerDelete{
+		containerUtil: containerUtil{
+			c:        cont,
+			client:   handler.client,
+			servResp: response,
+			servReq:  request,
+			res:      handler.res,
+		},
+		removeVolumens: containerDeleteRequest.removeVolumens,
+		recycleTimeout: handler.recycleTimeout,
 	}
-	logger.Infof("release reserved IP by id(%s)", id)
-	handler.releaseReservedIPByTiedContainerIDIfIdle(id)
-}
-
-func (handler containerDeleteHandler) releaseReservedIPByTiedContainerIDIfIdle(fullID string) {
-	logger := handler.Logger("releaseReservedIPByTiedContainerIDIfIdle")
-
-	if err := handler.ReleaseContainerAddresses(context.Background(), fullID); err != nil {
-		logger.Errorf("release reserved IP by tied container(%s) error", fullID)
-		logger.Errorf("release ip failed %v", err)
+	if err = del.Delete(); err != nil {
+		log.WithError(err).Error("Delete container error")
 	}
 }
 
@@ -141,8 +109,7 @@ func (handler containerDeleteHandler) match(request *http.Request) (containerDel
 			req.version = subMatches[1]
 			req.identifier = subMatches[2]
 			req.removeVolumens = parseBoolFromQuery(request, "v", false)
-
-			handler.Logger("match").Debugf("docker api version = %s", req.version)
+			log.WithCaller().WithField("DockerAPIVersion", req.version).Debug("MatchDelete")
 			return req, true
 		}
 	}
@@ -156,4 +123,28 @@ func parseBoolFromQuery(request *http.Request, key string, defVal bool) bool {
 		}
 	}
 	return defVal
+}
+
+type containerDelete struct {
+	containerUtil
+	removeVolumens bool
+	recycleTimeout time.Duration
+}
+
+func (c *containerDelete) Delete() (err error) {
+	return c.operate("delete", func(code int, status string) {
+		if code == http.StatusNoContent {
+			go c.releaseResources()
+		}
+	})
+}
+
+func (c *containerDelete) releaseResources() {
+	ctx, cancel := context.WithTimeout(context.Background(), c.recycleTimeout)
+	defer cancel()
+	for _, res := range c.Resources(ctx, c.removeVolumens) {
+		if err := res.Recycle(ctx); err != nil {
+			log.WithError(err).Error("Recycle resource error")
+		}
+	}
 }

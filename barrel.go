@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
+	"regexp"
 	"time"
 
 	_ "github.com/googleapis/gnostic/OpenAPIv2"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/projecteru2/barrel/app"
 	"github.com/projecteru2/barrel/driver"
-	"github.com/projecteru2/barrel/resources"
+	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
 	"github.com/projecteru2/barrel/versioninfo"
 )
@@ -37,8 +37,12 @@ func setupLog(l string) error {
 
 func run(c *cli.Context) (err error) {
 	var (
+		mode        types.Mode
 		dockerdPath = c.String("dockerd-path")
 	)
+	if mode, err = types.ParseMode(c.String("mode")); err != nil {
+		return err
+	}
 	utils.Initialize(c.Int("buffer-size"))
 	if err = setupLog(c.String("log-level")); err != nil {
 		return err
@@ -48,8 +52,6 @@ func run(c *cli.Context) (err error) {
 	hostEnvVars := c.StringSlice("host")
 	log.Printf("hostEnvVars = %v", hostEnvVars)
 
-	resources.Init(c.StringSlice("res-path"))
-
 	hostname := c.String("hostname")
 	if hostname == "" {
 		if hostname, err = os.Hostname(); err != nil {
@@ -57,20 +59,36 @@ func run(c *cli.Context) (err error) {
 		}
 	}
 
+	var regexps []*regexp.Regexp
+	for _, reg := range c.StringSlice("res-path") {
+		var (
+			r   *regexp.Regexp
+			err error
+		)
+		if r, err = regexp.Compile(reg); err != nil {
+			return err
+		}
+		regexps = append(regexps, r)
+	}
+
 	barrel := app.Application{
-		Hostname:               hostname,
-		Mode:                   strings.ToLower(c.String("mode")),
-		DockerDaemonUnixSocket: dockerdPath,
-		DockerAPIVersion:       "1.32",
-		Hosts:                  hostEnvVars,
-		DriverName:             driver.DriverName,
-		IpamDriverName:         driver.DriverName + driver.IpamSuffix,
-		DialTimeout:            time.Duration(6) * time.Second,
-		RequestTimeout:         c.Duration("request-timeout"),
-		CertFile:               c.String("tls-cert"),
-		KeyFile:                c.String("tls-key"),
-		ShutdownTimeout:        time.Duration(30) * time.Second,
-		EnableCNMAgent:         c.Bool("enable-cnm-agent"),
+		Config: types.Config{
+			Hostname:               hostname,
+			Mode:                   mode,
+			DockerDaemonUnixSocket: dockerdPath,
+			DockerAPIVersion:       "1.32",
+			Hosts:                  hostEnvVars,
+			DriverName:             driver.DriverName,
+			IpamDriverName:         driver.DriverName + driver.IpamSuffix,
+			DialTimeout:            time.Duration(6) * time.Second,
+			RequestTimeout:         c.Duration("request-timeout"),
+			CertFile:               c.String("tls-cert"),
+			KeyFile:                c.String("tls-key"),
+			ShutdownTimeout:        time.Duration(30) * time.Second,
+			EnableCNMAgent:         c.Bool("enable-cnm-agent"),
+			ResourcePathRegexps:    regexps,
+			RecycleTimeout:         c.Duration("recycle-timeout"),
+		},
 	}
 	return barrel.Run()
 }
@@ -144,6 +162,11 @@ func main() {
 				Name:  "request-timeout",
 				Usage: "for barrel request services(docker, etcd, etc.) timeout",
 				Value: time.Second * 120,
+			},
+			&cli.DurationFlag{
+				Name:  "recycle-timeout",
+				Usage: "for barrel recycle resource(ip, mounts) timeout",
+				Value: time.Second * 30,
 			},
 			&cli.StringFlag{
 				Name:    "log-level",

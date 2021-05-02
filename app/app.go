@@ -7,7 +7,6 @@ import (
 	"os/user"
 	"strconv"
 	"syscall"
-	"time"
 
 	dockerClient "github.com/docker/docker/client"
 	"github.com/juju/errors"
@@ -24,24 +23,14 @@ import (
 	"github.com/projecteru2/barrel/service"
 	"github.com/projecteru2/barrel/store"
 	"github.com/projecteru2/barrel/store/etcd"
+	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/vessel"
+	"github.com/projecteru2/barrel/vessel/resources"
 )
 
 // Application .
 type Application struct {
-	Hostname               string
-	Mode                   string
-	DockerDaemonUnixSocket string
-	DockerAPIVersion       string
-	Hosts                  []string
-	DriverName             string
-	IpamDriverName         string
-	DialTimeout            time.Duration
-	RequestTimeout         time.Duration
-	CertFile               string
-	KeyFile                string
-	ShutdownTimeout        time.Duration
-	EnableCNMAgent         bool
+	types.Config
 }
 
 // Run .
@@ -128,7 +117,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 		services = append(services, agent)
 	}
 	services = append(services, proxyService{
-		Server: barrelHttp.NewServer(docker.NewHandler(app.DockerDaemonUnixSocket, app.DialTimeout, vess)),
+		Server: barrelHttp.NewServer(docker.NewHandler(app.Config, vess, resources.NewResourceManager(app.ResourcePathRegexps, vess))),
 		gid:    gid,
 		tlsConfig: barrelHttp.TLSConfig{
 			CertFile: app.CertFile,
