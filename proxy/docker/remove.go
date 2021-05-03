@@ -103,15 +103,13 @@ func (handler containerDeleteHandler) releaseResources(containerInfo containerIn
 }
 
 func (handler containerDeleteHandler) releaseMounts(containerInfo containerInspectResult) {
-	logger := handler.Logger("releaseMounts")
-
+	var paths []string
 	for _, mnt := range containerInfo.Mounts {
 		if mnt.Source != "" {
-			if err := resources.RecycleResources(logger, mnt.Source); err != nil {
-				logger.Errorf("remove mount error, source = %s", mnt.Source)
-			}
+			paths = append(paths, mnt.Source)
 		}
 	}
+	resources.RecycleMounts(paths)
 }
 
 func (handler containerDeleteHandler) releaseReservedIP(id string) {

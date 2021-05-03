@@ -2,25 +2,59 @@ package resources
 
 import (
 	"os"
+	"sort"
 	"strings"
 
-	"github.com/projecteru2/barrel/utils"
+	log "github.com/sirupsen/logrus"
 )
 
-var resPaths []string
+var resPathPrefixes []string
 
 // Init .
-func Init(paths []string) {
-	resPaths = paths
+func Init(pathPrefixes []string) {
+	resPathPrefixes = pathPrefixes
 }
 
 // RecycleResources .
-func RecycleResources(logger utils.Logger, source string) error {
-	for _, path := range resPaths {
-		if strings.HasPrefix(source, path) {
-			logger.Infof("remove source, path = %s", source)
-			return os.RemoveAll(source)
+func RecycleMounts(paths []string) {
+	paths = minify(paths)
+
+	for _, path := range paths {
+		if !matchPrefix(path) {
+			log.WithField("path", path).Info("Path not matching resource path prefixes")
+			continue
+		}
+		if err := os.RemoveAll(path); err != nil {
+			log.WithError(err).WithField("path", path).Error("Remove mount path error")
+			continue
+		}
+		log.WithField("path", path).Info("Remove mount path success")
+	}
+}
+
+func matchPrefix(path string) bool {
+	for _, prefix := range resPathPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
 		}
 	}
-	return nil
+	return false
+}
+
+func minify(paths []string) []string {
+	if len(paths) == 0 {
+		return paths
+	}
+	var result []string
+	sort.Strings(paths)
+	curr := paths[0]
+	result = append(result, curr)
+	for _, p := range paths[1:] {
+		if strings.HasPrefix(p, curr) {
+			continue
+		}
+		curr = p
+		result = append(result, curr)
+	}
+	return result
 }

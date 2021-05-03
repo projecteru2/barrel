@@ -19,7 +19,8 @@ test:
 		./app/... \
 		./proxy/... \
 		./vessel/... \
-		./utils/... 
+		./utils/... \
+		./resources/... 
 
 binary:
 	go build -ldflags "$(GO_LDFLAGS)" -a -tags "netgo osusergo" -installsuffix netgo -o eru-barrel
