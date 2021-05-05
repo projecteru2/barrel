@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"os/user"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -86,7 +87,7 @@ func (app Application) getDockerClient() (*dockerClient.Client, error) {
 }
 
 func (app Application) getEtcdClient(ctx context.Context, apiConfig *apiconfig.CalicoAPIConfig) (store.Store, error) {
-	return etcd.NewClient(ctx, apiConfig)
+	return etcd.NewClient(ctx, strings.Split(apiConfig.Spec.EtcdConfig.EtcdEndpoints, ","))
 }
 
 func (app Application) getCalicoClient(apiConfig *apiconfig.CalicoAPIConfig) (calicov3.Interface, error) {

@@ -2,14 +2,12 @@ package etcd
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/juju/errors"
 	"github.com/projecteru2/barrel/store"
 
-	"github.com/projectcalico/libcalico-go/lib/apiconfig"
 	"go.etcd.io/etcd/clientv3"
 )
 
@@ -33,8 +31,7 @@ type Etcd struct {
 }
 
 // NewClient .
-func NewClient(ctx context.Context, config *apiconfig.CalicoAPIConfig) (*Etcd, error) {
-	endpoints := strings.Split(config.Spec.EtcdConfig.EtcdEndpoints, ",")
+func NewClient(ctx context.Context, endpoints []string) (*Etcd, error) {
 	cliv3, err := clientv3.New(clientv3.Config{
 		Endpoints:            endpoints,
 		DialTimeout:          clientTimeout,

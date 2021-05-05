@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"syscall"
 	"time"
 
 	_ "github.com/googleapis/gnostic/OpenAPIv2"
@@ -83,13 +82,14 @@ func cniRun(c *cli.Context) (err error) {
 	if c.Args().Len() < 1 {
 		return errors.New("cni binary is required at the first positional argument")
 	}
-	cniBin := c.Args().First()
-	cniWrapper := cni.Wrapper{}
+	cniWrapper, err := cni.NewWrapper(c.Args().First())
+	if err != nil {
+		return
+	}
 	if cniWrapper.RequireFixedIP() {
 		return cniWrapper.Run()
 	}
-	// normally exec(2) doesn't return
-	return syscall.Exec(cniBin, []string{cniBin}, os.Environ())
+	return cniWrapper.ExecCNI()
 }
 
 func main() {
