@@ -48,7 +48,7 @@ func run(c *cli.Context) (err error) {
 	hostEnvVars := c.StringSlice("host")
 	log.Printf("hostEnvVars = %v", hostEnvVars)
 
-	resources.Init(c.StringSlice("res-path"))
+	resources.Init(c.StringSlice("res-path-prefix"))
 
 	hostname := c.String("hostname")
 	if hostname == "" {
@@ -113,9 +113,9 @@ func main() {
 				EnvVars: []string{"BARREL_HOSTS"},
 			},
 			&cli.StringSliceFlag{
-				Name:    "res-path",
-				Usage:   "resource paths, can set multiple times",
-				EnvVars: []string{"BARREL_RESOURCE_PATHS"},
+				Name:    "res-path-prefix",
+				Usage:   "resource path prefix, can set multiple times",
+				EnvVars: []string{"BARREL_RESOURCE_PATH_PREFIXES"},
 			},
 			&cli.StringFlag{
 				Name:    "tls-cert",
