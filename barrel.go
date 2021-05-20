@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -12,10 +13,13 @@ import (
 	_ "go.uber.org/automaxprocs"
 
 	"github.com/projecteru2/barrel/app"
+	"github.com/projecteru2/barrel/cni/handler"
+	"github.com/projecteru2/barrel/cni/store/filesystem"
 	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/resources"
 	"github.com/projecteru2/barrel/utils"
 	"github.com/projecteru2/barrel/versioninfo"
+	cniapp "github.com/projecteru2/docker-cni/app"
 )
 
 func setupLog(l string) error {
@@ -80,84 +84,91 @@ func main() {
 		fmt.Print(versioninfo.VersionString())
 	}
 
-	app := &cli.App{
-		Name:    "Barrel",
-		Usage:   "Dockerd with calico fixed IP feature",
-		Action:  run,
-		Version: versioninfo.VERSION,
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "hostname",
-				Usage:   "hostname",
-				EnvVars: []string{"HOSTNAME"},
+	var app *cli.App
+	switch path.Base(os.Args[0]) {
+	case "barrel-cni":
+		store := filesystem.NewStore("/var/lib/barrel/cni")
+		app = cniapp.NewApp(handler.NewBarrelHandler(store), nil)
+	default:
+		app = &cli.App{
+			Name:    "Barrel",
+			Usage:   "Dockerd with calico fixed IP feature",
+			Action:  run,
+			Version: versioninfo.VERSION,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:    "hostname",
+					Usage:   "hostname",
+					EnvVars: []string{"HOSTNAME"},
+				},
+				&cli.StringFlag{
+					Name:    "mode",
+					Aliases: []string{"m"},
+					Value:   "default",
+					Usage:   "proxy-only | network-plugin-only | default",
+					EnvVars: []string{"BARREL_MODE"},
+				},
+				&cli.StringFlag{
+					Name:    "dockerd-path",
+					Aliases: []string{"D"},
+					Value:   "unix:///var/run/docker.sock",
+					Usage:   "dockerd path",
+					EnvVars: []string{"BARREL_DOCKERD_PATH"},
+				},
+				&cli.StringSliceFlag{
+					Name:    "host",
+					Aliases: []string{"H"},
+					Value:   cli.NewStringSlice("unix:///var/run/barrel.sock"),
+					Usage:   "host, can set multiple times",
+					EnvVars: []string{"BARREL_HOSTS"},
+				},
+				&cli.StringSliceFlag{
+					Name:    "res-path-prefix",
+					Usage:   "resource path prefix, can set multiple times",
+					EnvVars: []string{"BARREL_RESOURCE_PATH_PREFIXES"},
+				},
+				&cli.StringFlag{
+					Name:    "tls-cert",
+					Aliases: []string{"TC"},
+					Usage:   "tls-cert-file-path",
+					EnvVars: []string{"BARREL_TLS_CERT_FILE_PATH"},
+				},
+				&cli.StringFlag{
+					Name:    "tls-key",
+					Aliases: []string{"TK"},
+					Usage:   "tls-key-file-path",
+					EnvVars: []string{"BARREL_TLS_KEY_FILE_PATH"},
+				},
+				&cli.IntFlag{
+					Name:    "buffer-size",
+					Usage:   "set buffer size",
+					Value:   256,
+					EnvVars: []string{"BARREL_BUFFER_SIZE"},
+				},
+				&cli.DurationFlag{
+					Name:  "dial-timeout",
+					Usage: "for dial timeout",
+					Value: time.Second * 2,
+				},
+				&cli.DurationFlag{
+					Name:  "request-timeout",
+					Usage: "for barrel request services(docker, etcd, etc.) timeout",
+					Value: time.Second * 120,
+				},
+				&cli.StringFlag{
+					Name:    "log-level",
+					Value:   "INFO",
+					Usage:   "set log level",
+					EnvVars: []string{"BARREL_LOG_LEVEL"},
+				},
+				&cli.BoolFlag{
+					Name:    "enable-cnm-agent",
+					Value:   false,
+					Usage:   "enable cnm agent",
+					EnvVars: []string{"BARREL_ENABLE_CNM_AGENT"},
+				},
 			},
-			&cli.StringFlag{
-				Name:    "mode",
-				Aliases: []string{"m"},
-				Value:   "default",
-				Usage:   "proxy-only | network-plugin-only | default",
-				EnvVars: []string{"BARREL_MODE"},
-			},
-			&cli.StringFlag{
-				Name:    "dockerd-path",
-				Aliases: []string{"D"},
-				Value:   "unix:///var/run/docker.sock",
-				Usage:   "dockerd path",
-				EnvVars: []string{"BARREL_DOCKERD_PATH"},
-			},
-			&cli.StringSliceFlag{
-				Name:    "host",
-				Aliases: []string{"H"},
-				Value:   cli.NewStringSlice("unix:///var/run/barrel.sock"),
-				Usage:   "host, can set multiple times",
-				EnvVars: []string{"BARREL_HOSTS"},
-			},
-			&cli.StringSliceFlag{
-				Name:    "res-path-prefix",
-				Usage:   "resource path prefix, can set multiple times",
-				EnvVars: []string{"BARREL_RESOURCE_PATH_PREFIXES"},
-			},
-			&cli.StringFlag{
-				Name:    "tls-cert",
-				Aliases: []string{"TC"},
-				Usage:   "tls-cert-file-path",
-				EnvVars: []string{"BARREL_TLS_CERT_FILE_PATH"},
-			},
-			&cli.StringFlag{
-				Name:    "tls-key",
-				Aliases: []string{"TK"},
-				Usage:   "tls-key-file-path",
-				EnvVars: []string{"BARREL_TLS_KEY_FILE_PATH"},
-			},
-			&cli.IntFlag{
-				Name:    "buffer-size",
-				Usage:   "set buffer size",
-				Value:   256,
-				EnvVars: []string{"BARREL_BUFFER_SIZE"},
-			},
-			&cli.DurationFlag{
-				Name:  "dial-timeout",
-				Usage: "for dial timeout",
-				Value: time.Second * 2,
-			},
-			&cli.DurationFlag{
-				Name:  "request-timeout",
-				Usage: "for barrel request services(docker, etcd, etc.) timeout",
-				Value: time.Second * 120,
-			},
-			&cli.StringFlag{
-				Name:    "log-level",
-				Value:   "INFO",
-				Usage:   "set log level",
-				EnvVars: []string{"BARREL_LOG_LEVEL"},
-			},
-			&cli.BoolFlag{
-				Name:    "enable-cnm-agent",
-				Value:   false,
-				Usage:   "enable cnm agent",
-				EnvVars: []string{"BARREL_ENABLE_CNM_AGENT"},
-			},
-		},
+		}
 	}
 
 	if err := app.Run(os.Args); err != nil {
