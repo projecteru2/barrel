@@ -18,6 +18,12 @@ type IPInfo struct {
 	PoolID      string
 	Address     string
 	Status      BitStatus
+	Attrs       *IPAttributes
+}
+
+// IPAttributes .
+type IPAttributes struct {
+	Borrowers []Container
 }
 
 const (
@@ -27,10 +33,15 @@ const (
 	IPStatusRetired
 )
 
+// Container .
+type Container struct {
+	ID       string
+	HostName string
+}
+
 // ContainerInfo .
 type ContainerInfo struct {
-	ID        string
-	HostName  string
+	Container
 	Networks  []Network
 	Addresses []IP
 }

@@ -12,12 +12,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type httpClientImpl struct {
+type httpClient struct {
 	httpClient *http.Client
 }
 
 func newHTTPClient(dockerDaemonSocket string, dialTimeout time.Duration) barrelHttp.Client {
-	return httpClientImpl{
+	return httpClient{
 		httpClient: &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
@@ -28,7 +28,7 @@ func newHTTPClient(dockerDaemonSocket string, dialTimeout time.Duration) barrelH
 	}
 }
 
-func (client httpClientImpl) Request(req *http.Request) (clientResponse *http.Response, err error) {
+func (client httpClient) Request(req *http.Request) (clientResponse *http.Response, err error) {
 	var clientRequest *http.Request
 	if clientRequest, err = http.NewRequest(req.Method, processURL(req.URL.String()), req.Body); err != nil {
 		log.Errorf("[RawRequest] create HttpClientRequest failed %v", err)

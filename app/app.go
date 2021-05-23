@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"os"
 	"os/signal"
 	"os/user"
@@ -20,6 +19,7 @@ import (
 	"github.com/projecteru2/barrel/driver"
 	calicoDriver "github.com/projecteru2/barrel/driver/calico"
 	fixedIPDriver "github.com/projecteru2/barrel/driver/fixedip"
+	barrelEtcd "github.com/projecteru2/barrel/etcd"
 	barrelHttp "github.com/projecteru2/barrel/http"
 	"github.com/projecteru2/barrel/proxy/docker"
 	"github.com/projecteru2/barrel/service"
@@ -87,8 +87,12 @@ func (app Application) getDockerClient() (*dockerClient.Client, error) {
 	return dockerClient.NewClient(app.DockerDaemonUnixSocket, app.DockerAPIVersion, nil, nil)
 }
 
-func (app Application) getEtcdClient(ctx context.Context, apiConfig *apiconfig.CalicoAPIConfig) (store.Store, error) {
-	return etcd.NewClient(ctx, apiConfig)
+func (app Application) getEtcdClient(apiConfig *apiconfig.CalicoAPIConfig) (store.Store, error) {
+	cli, err := barrelEtcd.NewClient(apiConfig)
+	if err != nil {
+		return nil, err
+	}
+	return etcd.NewEtcdStore(cli), nil
 }
 
 func (app Application) getCalicoClient(apiConfig *apiconfig.CalicoAPIConfig) (calicov3.Interface, error) {
@@ -116,9 +120,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 	if dockerCli, err = app.getDockerClient(); err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), app.RequestTimeout)
-	defer cancel()
-	if stor, err = app.getEtcdClient(ctx, apiConfig); err != nil {
+	if stor, err = app.getEtcdClient(apiConfig); err != nil {
 		return nil, err
 	}
 	if gid, err = getDockerGid(); err != nil {
