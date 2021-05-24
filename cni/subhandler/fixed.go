@@ -4,7 +4,6 @@ import (
 	"github.com/projecteru2/barrel/cni"
 	"github.com/projecteru2/barrel/cni/store"
 	"github.com/projecteru2/docker-cni/config"
-	log "github.com/sirupsen/logrus"
 )
 
 // FixedSubhandler covers the containers with fixed-ip label but without specific IP
@@ -28,20 +27,13 @@ func (h FixedSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err err
 
 	// create
 	if nep == nil {
-		return h.super.HandleCreate(containerMeta)
+		if err = h.super.AddCNIStartHook(h.conf, &containerMeta.Meta); err != nil {
+			return
+		}
+		return containerMeta.Save()
 	}
 
 	// borrow
-	if err = h.store.ConnectNetEndpoint(containerMeta.ID(), nep); err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			if e := h.store.DisconnectNetEndpoint(containerMeta.ID(), nep); e != nil {
-				log.Errorf("failed to disconnect nep: %s, %+v", containerMeta.ID(), e)
-			}
-		}
-	}()
 	return h.BorrowNetEndpoint(containerMeta, nep)
 }
 

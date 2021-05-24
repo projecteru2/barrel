@@ -1,11 +1,14 @@
 package cni
 
 import (
+	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/pkg/errors"
+	"github.com/projecteru2/barrel/utils"
 	"github.com/projecteru2/docker-cni/oci"
 )
 
@@ -63,21 +66,19 @@ func (c ContainerMeta) ID() string {
 }
 
 func (c ContainerMeta) Netns() (path string) {
-	for _, ns := range c.Meta.Spec.Linux.Namespaces {
-		if ns.Type == specs.NetworkNamespace {
-			return ns.Path
-		}
-	}
-	return
+	return fmt.Sprintf("/proc/%d/ns/net", c.Meta.InitPid)
 }
 
 func (c ContainerMeta) IPv4() (ip string, err error) {
-	args := []string{"ip", "net", "e", c.Netns(), "ip", "-4", "a", "sh", "eth0"}
-	out, err := exec.Command("ip", args...).Output()
-	if err != nil {
+	args := []string{"ip", "-4", "a", "sh", "eth0"}
+	var out []byte
+	if err = utils.WithNetns(c.Netns(), func() error {
+		out, err = exec.Command(args[0], args[1:]...).Output()
+		return errors.WithStack(err)
+	}); err != nil {
 		return
 	}
-	return string(ipv4Pattern.Find(out)), err
+	return string(ipv4Pattern.Find(out)), nil
 }
 
 func (c ContainerMeta) Save() error {
