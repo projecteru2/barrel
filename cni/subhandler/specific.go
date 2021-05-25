@@ -1,9 +1,16 @@
 package subhandler
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/pkg/errors"
 	"github.com/projecteru2/barrel/cni"
 	"github.com/projecteru2/barrel/cni/store"
 	"github.com/projecteru2/docker-cni/config"
+	log "github.com/sirupsen/logrus"
 )
 
 // SpecificSubHandler covers the containers with specific IP but without fixed-ip label
@@ -58,9 +65,16 @@ func (h SpecificSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err 
 	if err != nil {
 		return
 	}
-	if count == 0 {
-		return h.store.DeleteNetEndpoint(nep)
+	log.Errorf("refcount: %s", count)
+	if count > 0 {
+		return
 	}
-	// TODO@zc: cni del
-	return
+
+	log.Info("refcount back to zero, cleanup")
+	if err = h.store.DeleteNetEndpoint(nep); err != nil {
+		return
+	}
+	cmd := exec.Command(os.Args[0], "cni", "--config", h.conf.Filename, "--command", "del")
+	cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"id":"%s"}`, containerMeta.ID()))
+	return errors.WithStack(cmd.Run())
 }

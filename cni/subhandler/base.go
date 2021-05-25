@@ -41,7 +41,7 @@ func (h *Base) CreateNetEndpoint(containerMeta *cni.ContainerMeta) (err error) {
 		return
 	}
 
-	nep, err := h.store.CreateNetEndpoint(containerMeta.Netns(), ipv4)
+	nep, err := h.store.CreateNetEndpoint(containerMeta.Netns(), containerMeta.ID(), ipv4)
 	if err != nil {
 		return
 	}

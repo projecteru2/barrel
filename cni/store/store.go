@@ -9,7 +9,7 @@ type Store interface {
 	ConnectNetEndpoint(containerID string, _ *cni.NetEndpoint) error
 	DisconnectNetEndpoint(containerID string, _ *cni.NetEndpoint) error
 
-	CreateNetEndpoint(netns, ipv4 string) (*cni.NetEndpoint, error)
+	CreateNetEndpoint(netns, id, ipv4 string) (*cni.NetEndpoint, error)
 	DeleteNetEndpoint(*cni.NetEndpoint) error
 
 	OccupyNetEndpoint(containerID string, _ *cni.NetEndpoint) error

@@ -3,11 +3,13 @@ package filesystem
 import (
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"syscall"
 
 	"github.com/pkg/errors"
 	"github.com/projecteru2/barrel/cni"
+	log "github.com/sirupsen/logrus"
 )
 
 type FSStore struct {
@@ -69,7 +71,23 @@ func (s FSStore) DisconnectNetEndpoint(containerID string, nep *cni.NetEndpoint)
 	return errors.WithStack(os.Remove(s.NetnsPath(containerID)))
 }
 
-func (s FSStore) CreateNetEndpoint(netns, ipv4 string) (nep *cni.NetEndpoint, err error) {
+func (s FSStore) CreateNetEndpoint(netns, id, ipv4 string) (nep *cni.NetEndpoint, err error) {
+	file, err := os.OpenFile(s.CreatedPath(ipv4), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return nep, errors.WithStack(err)
+	}
+	defer func() {
+		if err != nil {
+			if e := os.Remove(s.CreatedPath(ipv4)); e != nil {
+				log.Errorf("failed to remove created path: %s, %+v", ipv4)
+			}
+		}
+	}()
+
+	if _, err = file.Write([]byte(id)); err != nil {
+		return nep, errors.WithStack(err)
+	}
+
 	if _, err := os.Create(s.NetnsPath(ipv4)); err != nil {
 		return nep, errors.WithStack(err)
 	}
@@ -84,6 +102,8 @@ func (s FSStore) CreateNetEndpoint(netns, ipv4 string) (nep *cni.NetEndpoint, er
 
 func (s FSStore) DeleteNetEndpoint(nep *cni.NetEndpoint) (err error) {
 	os.Remove(s.OccupiedPath(nep.IPv4))
+	os.Remove(s.CreatedPath(nep.IPv4))
+	syscall.Unmount(s.NetnsPath(nep.IPv4), syscall.MNT_DETACH)
 	return errors.WithStack(os.Remove(s.NetnsPath(nep.IPv4)))
 }
 
@@ -115,17 +135,17 @@ func (s FSStore) GetNetEndpointRefcount(nep *cni.NetEndpoint) (rc int, err error
 
 	for _, file := range files {
 		if file.Mode()&os.ModeSymlink != 0 {
-			if destNetns, err := os.Readlink(file.Name()); err == nil && destNetns == nep.Netns {
+			if destNetns, err := os.Readlink(path.Join(s.root, file.Name())); err == nil && destNetns == nep.Netns {
 				rc++
 			} else if err != nil {
-				return 0, err
+				return 0, errors.WithStack(err)
 			}
 		}
 	}
 
-	if _, err = os.Stat(s.OccupiedPath(nep.IPv4)); err == nil {
+	if _, e := os.Stat(s.OccupiedPath(nep.IPv4)); e == nil {
 		rc++
 	}
 
-	return
+	return rc, errors.WithStack(err)
 }
