@@ -1,6 +1,6 @@
 module github.com/projecteru2/barrel
 
-go 1.15
+go 1.16
 
 require (
 	cloud.google.com/go v0.50.0 // indirect
@@ -62,7 +62,6 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/vishvananda/netlink v1.1.0
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
-	go.etcd.io/bbolt v1.3.3 // indirect
 	go.etcd.io/etcd v3.3.25+incompatible
 	go.uber.org/automaxprocs v1.3.0
 	go.uber.org/zap v1.16.0 // indirect
