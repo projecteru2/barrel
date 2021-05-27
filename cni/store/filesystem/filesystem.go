@@ -41,9 +41,14 @@ func (s FSStore) GetNetEndpointByID(id string) (nep *cni.NetEndpoint, err error)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	owner, err := ioutil.ReadFile(s.OwnerPath(filepath.Base(netnsPath)))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	return &cni.NetEndpoint{
 		IPv4:  filepath.Base(netnsPath),
 		Netns: netnsPath,
+		Owner: string(owner),
 	}, nil
 }
 
@@ -54,9 +59,14 @@ func (s FSStore) GetNetEndpointByIP(ip string) (nep *cni.NetEndpoint, err error)
 		}
 		return nil, errors.WithStack(err)
 	}
+	owner, err := ioutil.ReadFile(s.OwnerPath(ip))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	return &cni.NetEndpoint{
 		IPv4:  ip,
 		Netns: s.NetnsPath(ip),
+		Owner: string(owner),
 	}, nil
 }
 
@@ -72,14 +82,14 @@ func (s FSStore) DisconnectNetEndpoint(containerID string, nep *cni.NetEndpoint)
 }
 
 func (s FSStore) CreateNetEndpoint(netns, id, ipv4 string) (nep *cni.NetEndpoint, err error) {
-	file, err := os.OpenFile(s.CreatedPath(ipv4), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	file, err := os.OpenFile(s.OwnerPath(ipv4), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return nep, errors.WithStack(err)
 	}
 	defer func() {
 		if err != nil {
-			if e := os.Remove(s.CreatedPath(ipv4)); e != nil {
-				log.Errorf("failed to remove created path: %s, %+v", ipv4)
+			if e := os.Remove(s.OwnerPath(ipv4)); e != nil {
+				log.Errorf("failed to remove file: %s, %+v", ipv4, e)
 			}
 		}
 	}()
@@ -91,24 +101,33 @@ func (s FSStore) CreateNetEndpoint(netns, id, ipv4 string) (nep *cni.NetEndpoint
 	if _, err := os.Create(s.NetnsPath(ipv4)); err != nil {
 		return nep, errors.WithStack(err)
 	}
+	defer func() {
+		if err != nil {
+			if e := os.Remove(s.NetnsPath(nep.IPv4)); e != nil {
+				log.Errorf("failed to remove file: %s, %+v", s.NetnsPath(nep.IPv4), e)
+			}
+		}
+	}()
+
 	if err = syscall.Mount(netns, s.NetnsPath(ipv4), "none", syscall.MS_BIND, ""); err != nil {
 		return nil, errors.WithStack(err)
 	}
 	return &cni.NetEndpoint{
 		IPv4:  ipv4,
 		Netns: s.NetnsPath(ipv4),
+		Owner: id,
 	}, nil
 }
 
 func (s FSStore) DeleteNetEndpoint(nep *cni.NetEndpoint) (err error) {
-	os.Remove(s.OccupiedPath(nep.IPv4))
-	os.Remove(s.CreatedPath(nep.IPv4))
+	os.Remove(s.TenantPath(nep.IPv4))
+	os.Remove(s.OwnerPath(nep.IPv4))
 	syscall.Unmount(s.NetnsPath(nep.IPv4), syscall.MNT_DETACH)
 	return errors.WithStack(os.Remove(s.NetnsPath(nep.IPv4)))
 }
 
 func (s FSStore) OccupyNetEndpoint(containerID string, nep *cni.NetEndpoint) (err error) {
-	file, err := os.OpenFile(s.OccupiedPath(nep.IPv4), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	file, err := os.OpenFile(s.TenantPath(nep.IPv4), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -117,14 +136,14 @@ func (s FSStore) OccupyNetEndpoint(containerID string, nep *cni.NetEndpoint) (er
 }
 
 func (s FSStore) FreeNetEndpoint(containerID string, nep *cni.NetEndpoint) (err error) {
-	bs, err := ioutil.ReadFile(s.OccupiedPath(nep.IPv4))
+	bs, err := ioutil.ReadFile(s.TenantPath(nep.IPv4))
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	if string(bs) != containerID {
 		return errors.Errorf("invalid free request, id not match: %s", containerID)
 	}
-	return errors.WithStack(os.Remove(s.OccupiedPath(nep.IPv4)))
+	return errors.WithStack(os.Remove(s.TenantPath(nep.IPv4)))
 }
 
 func (s FSStore) GetNetEndpointRefcount(nep *cni.NetEndpoint) (rc int, err error) {
@@ -143,7 +162,7 @@ func (s FSStore) GetNetEndpointRefcount(nep *cni.NetEndpoint) (rc int, err error
 		}
 	}
 
-	if _, e := os.Stat(s.OccupiedPath(nep.IPv4)); e == nil {
+	if _, e := os.Stat(s.TenantPath(nep.IPv4)); e == nil {
 		rc++
 	}
 

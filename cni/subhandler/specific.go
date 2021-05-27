@@ -34,7 +34,7 @@ func (h SpecificSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err 
 
 	// create
 	if nep == nil {
-		return h.super.HandleCreate(containerMeta)
+		return errors.Errorf("specific ip create is not supported by CNI")
 	}
 
 	// borrow
@@ -52,9 +52,9 @@ func (h SpecificSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err 
 		return
 	}
 
-	// create
+	// create: never reach here
 	if nep == nil {
-		return
+		return errors.Errorf("specific ip create is not supported by CNI")
 	}
 
 	// borrow
@@ -65,7 +65,6 @@ func (h SpecificSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err 
 	if err != nil {
 		return
 	}
-	log.Errorf("refcount: %s", count)
 	if count > 0 {
 		return
 	}
@@ -74,7 +73,8 @@ func (h SpecificSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err 
 	if err = h.store.DeleteNetEndpoint(nep); err != nil {
 		return
 	}
+	log.Errorf("exe: %s, conf file: %s, id: %s", os.Args[0], h.conf.Filename, containerMeta.ID())
 	cmd := exec.Command(os.Args[0], "cni", "--config", h.conf.Filename, "--command", "del")
-	cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"id":"%s"}`, containerMeta.ID()))
+	cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"id":"%s"}`, nep.Owner))
 	return errors.WithStack(cmd.Run())
 }

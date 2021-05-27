@@ -1,6 +1,7 @@
 package subhandler
 
 import (
+	"github.com/pkg/errors"
 	"github.com/projecteru2/barrel/cni"
 	"github.com/projecteru2/barrel/cni/store"
 	"github.com/projecteru2/docker-cni/config"
@@ -30,12 +31,9 @@ func (h FixedSpecificSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) 
 		return
 	}
 
-	// create
+	// create: we don't allow
 	if nep == nil {
-		if err = h.super.AddCNIStartHook(h.conf, &containerMeta.Meta); err != nil {
-			return
-		}
-		return containerMeta.Save()
+		return errors.Errorf("specific ip create is not supported by CNI")
 	}
 
 	// borrow
@@ -63,8 +61,8 @@ func (h FixedSpecificSubhandler) HandleStart(containerMeta *cni.ContainerMeta) (
 		return
 	}
 
-	// create
-	return h.CreateNetEndpoint(containerMeta)
+	// create: never reach here
+	return errors.Errorf("specific ip create is not supported by CNI")
 }
 
 func (h FixedSpecificSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err error) {

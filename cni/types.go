@@ -15,6 +15,7 @@ import (
 type NetEndpoint struct {
 	IPv4  string
 	Netns string
+	Owner string
 }
 
 type ContainerMeta struct {
