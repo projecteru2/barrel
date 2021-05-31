@@ -1,7 +1,6 @@
 package subhandler
 
 import (
-	"github.com/pkg/errors"
 	"github.com/projecteru2/barrel/cni"
 	"github.com/projecteru2/barrel/cni/store"
 	"github.com/projecteru2/docker-cni/config"
@@ -28,7 +27,7 @@ func (h SpecificSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err 
 
 	// create
 	if nep == nil {
-		return errors.Errorf("specific ip create is not supported by CNI")
+		return h.super.HandleCreate(containerMeta)
 	}
 
 	// borrow
@@ -46,9 +45,9 @@ func (h SpecificSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err 
 		return
 	}
 
-	// create: should never reach here
+	// create
 	if nep == nil {
-		return errors.Errorf("it's likely a bug: specific delete while nep not found")
+		return
 	}
 
 	// borrow

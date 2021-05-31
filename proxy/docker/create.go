@@ -76,6 +76,12 @@ func (handler containerCreateHandler) Handle(ctx proxy.HandleContext, res http.R
 		writeErrorResponse(res, logger, err, "unmarshal server request body")
 		return
 	}
+
+	if err = handler.adaptRequestForCNI(bodyObject); err != nil {
+		writeErrorResponse(res, logger, err, "failed to adapt request for cni")
+		return
+	}
+
 	if fixedIPAddress, err = handler.checkAndRequestFixedIP(bodyObject); err != nil {
 		writeErrorResponse(res, logger, err, "check and request fixed-ip")
 		if len(fixedIPAddress) > 0 {
@@ -284,4 +290,67 @@ func (handler containerCreateHandler) writeServerResponse(
 	); err != nil {
 		logger.Errorf("mark fixed-ip(%s) for container(%s) failed %v", fixedIPAddress, body.ID, err)
 	}
+}
+
+// steps:
+// 1. force --net none
+// 2. --label fixed-ip=1 => --env fixed-ip=1
+// 3. --label ipv4=x => --env ipv4=x
+func (handler containerCreateHandler) adaptRequestForCNI(body utils.Object) (err error) {
+	var (
+		hostConfig utils.Object
+		runtime    string
+		labels     utils.Object
+		env        utils.Array
+	)
+	logger := handler.Logger("adaptRequestForCNI")
+	if iHostConfig, ok := body.Get("HostConfig"); !ok || iHostConfig.Null() {
+		return nil
+	} else if hostConfig, ok = iHostConfig.ObjectValue(); !ok {
+		return errors.Errorf("parse HostConfig error, hostConfig=%s", iHostConfig.String())
+	}
+	if iRuntime, ok := hostConfig.Get("Runtime"); !ok || iRuntime.Null() {
+		return nil
+	} else if runtime, ok = iRuntime.StringValue(); !ok {
+		return errors.Errorf("parse Runtime error, runtime=%s", iRuntime.String())
+	}
+	if runtime != "cni" {
+		return
+	}
+
+	hostConfig.Set("Runtime", utils.NewStringNode("barrel-cni"))
+	hostConfig.Set("NetworkMode", utils.NewStringNode("none"))
+	logger.Info("cni mode detected, set network none")
+
+	iEnv, ok := body.Get("Env")
+	if !ok || iEnv.Null() {
+		body.Set("Env", utils.NewArrayNode().Any())
+		iEnv, _ = body.Get("Env")
+	}
+	env, ok = iEnv.ArrayValue()
+	if !ok {
+		return errors.Errorf("parse Env error, env=%s", iEnv.String())
+	}
+
+	if iLabels, ok := body.Get("Labels"); ok && !iLabels.Null() {
+		if labels, ok = iLabels.ObjectValue(); !ok {
+			return
+		}
+		if fixedIPLabel, ok := labels.Get(FixedIPLabel); ok && isFixedIPEnable(fixedIPLabel) {
+			labels.Del(FixedIPLabel)
+			env.Add(utils.NewStringNode(FixedIPLabel + "=1"))
+			logger.Info("cni fixed-ip mode detected, set fixed-ip env, delete fixed-ip label")
+		}
+	}
+
+	specificIPLabel, ok := labels.Get("ipv4")
+	if ok && !specificIPLabel.Null() {
+		if specificIP, ok := specificIPLabel.StringValue(); ok {
+			env.Add(utils.NewStringNode("ipv4=" + specificIP))
+			logger.Info("cni specific-ip mode detected, set ipv4 env")
+		}
+	}
+
+	return
+
 }

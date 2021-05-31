@@ -42,6 +42,6 @@ func (s pluginServer) ServeIpam(ipam pluginIpam.Ipam) error {
 func (s pluginServer) ServeNetwork(driver pluginNetwork.Driver) error {
 	log.Infoln("start net driver.")
 	err := pluginNetwork.NewHandler(driverWrapper{driver}).ServeUnix(s.driverName, 0)
-	log.Infoln("net driver has stopped working.")
+	log.Infof("net driver has stopped working: %+v", err)
 	return err
 }

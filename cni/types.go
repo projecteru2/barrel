@@ -41,13 +41,7 @@ func (c ContainerMeta) RequiresFixedIP() bool {
 }
 
 func (c ContainerMeta) SpecificIP() string {
-	for _, env := range c.Meta.Spec.Process.Env {
-		parts := strings.Split(env, "=")
-		if len(parts) == 2 && parts[0] == "ipv4" && parts[1] != "" {
-			return parts[1]
-		}
-	}
-	return ""
+	return c.Meta.SpecificIP()
 }
 
 func (c ContainerMeta) RequiresSpecificIP() bool {

@@ -1,11 +1,9 @@
 package subhandler
 
 import (
-	"github.com/pkg/errors"
 	"github.com/projecteru2/barrel/cni"
 	"github.com/projecteru2/barrel/cni/store"
 	"github.com/projecteru2/docker-cni/config"
-	log "github.com/sirupsen/logrus"
 )
 
 // FixedSpecifcSubhandler covers the containers with specific IP and fixed-ip label
@@ -31,22 +29,15 @@ func (h FixedSpecificSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) 
 		return
 	}
 
-	// create: we don't allow
+	// create
 	if nep == nil {
-		return errors.Errorf("specific ip create is not supported by CNI")
+		if err = h.super.AddCNIStartHook(h.conf, &containerMeta.Meta); err != nil {
+			return
+		}
+		return containerMeta.Save()
 	}
 
 	// borrow
-	if err = h.store.ConnectNetEndpoint(containerMeta.ID(), nep); err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			if e := h.store.DisconnectNetEndpoint(containerMeta.ID(), nep); e != nil {
-				log.Errorf("failed to disconnect nep: %s, %+v", containerMeta.ID(), e)
-			}
-		}
-	}()
 	return h.BorrowNetEndpoint(containerMeta, nep)
 }
 
@@ -58,11 +49,11 @@ func (h FixedSpecificSubhandler) HandleStart(containerMeta *cni.ContainerMeta) (
 
 	// borrow
 	if nep != nil {
-		return
+		return h.store.ConnectNetEndpoint(containerMeta.ID(), nep)
 	}
 
-	// create: never reach here
-	return errors.Errorf("specific ip create is not supported by CNI")
+	// create
+	return h.CreateNetEndpoint(containerMeta)
 }
 
 func (h FixedSpecificSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err error) {

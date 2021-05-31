@@ -15,11 +15,13 @@ import (
 	"github.com/projecteru2/barrel/app"
 	"github.com/projecteru2/barrel/cni/handler"
 	"github.com/projecteru2/barrel/cni/store/filesystem"
+	"github.com/projecteru2/barrel/cni/subhandler"
 	"github.com/projecteru2/barrel/driver"
 	"github.com/projecteru2/barrel/resources"
 	"github.com/projecteru2/barrel/utils"
 	"github.com/projecteru2/barrel/versioninfo"
 	cniapp "github.com/projecteru2/docker-cni/app"
+	"github.com/projecteru2/docker-cni/config"
 )
 
 func setupLog(l string) error {
@@ -61,6 +63,12 @@ func run(c *cli.Context) (err error) {
 		}
 	}
 
+	cniStore := filesystem.NewStore("/var/lib/barrel/cni")
+	cniConf, err := config.LoadConfig(c.String("cni-config"))
+	if err != nil {
+		return
+	}
+
 	barrel := app.Application{
 		Hostname:               hostname,
 		Mode:                   strings.ToLower(c.String("mode")),
@@ -75,6 +83,7 @@ func run(c *cli.Context) (err error) {
 		KeyFile:                c.String("tls-key"),
 		ShutdownTimeout:        time.Duration(30) * time.Second,
 		EnableCNMAgent:         c.Bool("enable-cnm-agent"),
+		CNIBase:                subhandler.NewBase(cniConf, cniStore),
 	}
 	return barrel.Run()
 }
@@ -166,6 +175,12 @@ func main() {
 					Value:   false,
 					Usage:   "enable cnm agent",
 					EnvVars: []string{"BARREL_ENABLE_CNM_AGENT"},
+				},
+				&cli.StringFlag{
+					Name:    "cni-config",
+					Value:   "/etc/docker/cni.yaml",
+					Usage:   "cni config filepath",
+					EnvVars: []string{"CNI_CONFIG_PATH"},
 				},
 			},
 		}

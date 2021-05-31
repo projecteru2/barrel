@@ -13,10 +13,14 @@ import (
 )
 
 type containerInspectResult struct {
-	ID     string `json:"Id"`
+	ID         string `json:"Id"`
+	HostConfig struct {
+		Runtime string
+	}
 	Config struct {
 		Image  string
 		Labels map[string]string
+		Env    []string
 	}
 	Mounts []struct {
 		Name        string
