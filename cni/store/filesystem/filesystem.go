@@ -78,6 +78,7 @@ func (s FSStore) ConnectNetEndpoint(containerID string, nep *cni.NetEndpoint) (e
 }
 
 func (s FSStore) DisconnectNetEndpoint(containerID string, nep *cni.NetEndpoint) (err error) {
+	syscall.Unmount(s.NetnsPath(containerID), syscall.MNT_DETACH)
 	return errors.WithStack(os.Remove(s.NetnsPath(containerID)))
 }
 

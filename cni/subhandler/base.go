@@ -1,6 +1,12 @@
 package subhandler
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/pkg/errors"
 	"github.com/projecteru2/barrel/cni"
 	"github.com/projecteru2/barrel/cni/store"
 	"github.com/projecteru2/docker-cni/config"
@@ -65,4 +71,40 @@ func (h *Base) CreateNetEndpoint(containerMeta *cni.ContainerMeta) (err error) {
 	}()
 
 	return h.store.OccupyNetEndpoint(containerMeta.ID(), nep)
+}
+
+func (h *Base) DeleteDanglingNetwork(nep *cni.NetEndpoint) (err error) {
+	count, err := h.store.GetNetEndpointRefcount(nep)
+	if err != nil {
+		return
+	}
+	if count > 0 {
+		return
+	}
+
+	log.Info("refcount back to zero, cleanup: %+v", nep)
+	if err = h.store.DeleteNetEndpoint(nep); err != nil {
+		return
+	}
+	cmd := exec.Command(os.Args[0], "cni", "--config", h.conf.Filename, "--command", "del")
+	cmd.Args[0] = "barrel-cni"
+	cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"id":"%s"}`, nep.Owner))
+	return errors.WithStack(cmd.Run())
+}
+
+func (h *Base) RemoveNetowrk(id string) (err error) {
+	nep, err := h.store.GetNetEndpointByID(id)
+	if err != nil {
+		return
+	}
+
+	if nep == nil {
+		log.Warnf("nep not found: %s", id)
+		return
+	}
+
+	if err = h.store.DisconnectNetEndpoint(id, nep); err != nil {
+		return
+	}
+	return h.DeleteDanglingNetwork(nep)
 }
