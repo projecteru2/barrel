@@ -20,6 +20,13 @@ func NewSpecific(conf config.Config, store store.Store) *SpecificSubhandler {
 }
 
 func (h SpecificSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err error) {
+	flock, err := h.store.GetFlock(containerMeta.SpecificIP())
+	if err != nil {
+		return
+	}
+	if err = flock.Lock(); err != nil {
+		return
+	}
 	nep, err := h.store.GetNetEndpointByIP(containerMeta.SpecificIP())
 	if err != nil {
 		return
@@ -27,8 +34,10 @@ func (h SpecificSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err 
 
 	// create
 	if nep == nil {
+		flock.Unlock()
 		return h.super.HandleCreate(containerMeta)
 	}
+	defer flock.Unlock()
 
 	// borrow
 	return h.BorrowNetEndpoint(containerMeta, nep)

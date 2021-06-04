@@ -16,4 +16,11 @@ type Store interface {
 	FreeNetEndpoint(containerID string, _ *cni.NetEndpoint) error
 
 	GetNetEndpointRefcount(*cni.NetEndpoint) (int, error)
+
+	GetFlock(ip string) (Flock, error)
+}
+
+type Flock interface {
+	Lock() error
+	Unlock() error
 }

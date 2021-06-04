@@ -13,3 +13,7 @@ func (s FSStore) TenantPath(ip string) string {
 func (s FSStore) OwnerPath(ip string) string {
 	return filepath.Join(s.root, ip+"-owner")
 }
+
+func (s FSStore) FlockPath(ip string) string {
+	return filepath.Join(s.root, ip+"-flock")
+}

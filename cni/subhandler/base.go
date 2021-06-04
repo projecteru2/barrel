@@ -74,16 +74,18 @@ func (h *Base) CreateNetEndpoint(containerMeta *cni.ContainerMeta) (err error) {
 }
 
 func (h *Base) DeleteDanglingNetwork(nep *cni.NetEndpoint) (err error) {
-	count, err := h.store.GetNetEndpointRefcount(nep)
-	if err != nil {
-		return
-	}
-	if count > 0 {
-		return
-	}
+	if err = h.withFlock(nep.IPv4, func() (err error) {
+		count, err := h.store.GetNetEndpointRefcount(nep)
+		if err != nil {
+			return
+		}
+		if count > 0 {
+			return
+		}
 
-	log.Info("refcount back to zero, cleanup: %+v", nep)
-	if err = h.store.DeleteNetEndpoint(nep); err != nil {
+		log.Info("refcount back to zero, cleanup: %+v", nep)
+		return h.store.DeleteNetEndpoint(nep)
+	}); err != nil {
 		return
 	}
 	cmd := exec.Command(os.Args[0], "cni", "--config", h.conf.Filename, "--command", "del")
@@ -107,4 +109,14 @@ func (h *Base) RemoveNetowrk(id string) (err error) {
 		return
 	}
 	return h.DeleteDanglingNetwork(nep)
+}
+
+func (h *Base) withFlock(ip string, f func() error) (err error) {
+	flock, err := h.store.GetFlock(ip)
+	if err != nil {
+		return
+	}
+	flock.Lock()
+	defer flock.Unlock()
+	return f()
 }

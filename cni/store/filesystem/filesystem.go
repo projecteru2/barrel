@@ -123,6 +123,7 @@ func (s FSStore) CreateNetEndpoint(netns, id, ipv4 string) (nep *cni.NetEndpoint
 func (s FSStore) DeleteNetEndpoint(nep *cni.NetEndpoint) (err error) {
 	os.Remove(s.TenantPath(nep.IPv4))
 	os.Remove(s.OwnerPath(nep.IPv4))
+	os.Remove(s.FlockPath(nep.IPv4))
 	syscall.Unmount(s.NetnsPath(nep.IPv4), syscall.MNT_DETACH)
 	return errors.WithStack(os.Remove(s.NetnsPath(nep.IPv4)))
 }
