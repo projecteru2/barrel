@@ -4,14 +4,16 @@ import (
 	"github.com/projecteru2/barrel/cni"
 	"github.com/projecteru2/barrel/cni/store"
 	"github.com/projecteru2/docker-cni/config"
+	log "github.com/sirupsen/logrus"
 )
 
-// SpecificSubHandler covers the containers with specific IP but without fixed-ip label
+// SpecificSubhandler covers the containers with specific IP but without fixed-ip label
 type SpecificSubhandler struct {
 	Base
 	super SuperSubhandler
 }
 
+// NewSpecific .
 func NewSpecific(conf config.Config, store store.Store) *SpecificSubhandler {
 	return &SpecificSubhandler{
 		Base:  *NewBase(conf, store),
@@ -19,6 +21,7 @@ func NewSpecific(conf config.Config, store store.Store) *SpecificSubhandler {
 	}
 }
 
+// HandleCreate .
 func (h SpecificSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err error) {
 	flock, err := h.store.GetFlock(containerMeta.SpecificIP())
 	if err != nil {
@@ -34,20 +37,28 @@ func (h SpecificSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err 
 
 	// create
 	if nep == nil {
-		flock.Unlock()
+		if err = flock.Unlock(); err != nil {
+			return
+		}
 		return h.super.HandleCreate(containerMeta)
 	}
-	defer flock.Unlock()
+	defer func() {
+		if e := flock.Unlock(); e != nil {
+			log.Errorf("failed to unlock flock %s: %+v", containerMeta.SpecificIP(), e)
+		}
+	}()
 
 	// borrow
 	return h.BorrowNetEndpoint(containerMeta, nep)
 }
 
+// HandleStart .
 func (h SpecificSubhandler) HandleStart(_ *cni.ContainerMeta) (err error) {
 	// do nothing
 	return
 }
 
+// HandleDelete .
 func (h SpecificSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err error) {
 	nep, err := h.store.GetNetEndpointByIP(containerMeta.SpecificIP())
 	if err != nil {

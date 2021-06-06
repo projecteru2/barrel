@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -63,7 +64,10 @@ func run(c *cli.Context) (err error) {
 		}
 	}
 
-	cniStore := filesystem.NewStore("/var/lib/barrel/cni")
+	cniStore, err := filesystem.NewStore("/var/lib/barrel/cni")
+	if err != nil {
+		return
+	}
 	cniConf, err := config.LoadConfig(c.String("cni-config"))
 	if err != nil {
 		return
@@ -96,8 +100,17 @@ func main() {
 	var app *cli.App
 	switch path.Base(os.Args[0]) {
 	case "barrel-cni":
-		store := filesystem.NewStore("/var/lib/barrel/cni")
+		store, err := filesystem.NewStore("/var/lib/barrel/cni")
+		if err != nil {
+			log.Fatalf("failed to new store: %+v", err)
+		}
 		app = cniapp.NewApp(handler.NewBarrelHandler(store), nil)
+		if err := app.Run(os.Args); err != nil {
+			os.Stdout.WriteString(errors.Unwrap(err).Error())
+			log.Fatal(err)
+		}
+		return
+
 	default:
 		app = &cli.App{
 			Name:    "Barrel",
@@ -184,9 +197,9 @@ func main() {
 				},
 			},
 		}
+		if err := app.Run(os.Args); err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
-	}
 }

@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// WithNetns enters a netns and exits
 func WithNetns(netnsPath string, f func() error) (err error) {
 	file, err := os.Open(netnsPath)
 	if err != nil {

@@ -7,10 +7,12 @@ import (
 	"github.com/projecteru2/docker-cni/config"
 )
 
+// BarrelHandler is the implementation of docker-cni handler
 type BarrelHandler struct {
 	store store.Store
 }
 
+// NewBarrelHandler .
 func NewBarrelHandler(store store.Store) *BarrelHandler {
 	return &BarrelHandler{
 		store: store,

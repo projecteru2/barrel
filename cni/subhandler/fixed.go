@@ -12,6 +12,7 @@ type FixedSubhandler struct {
 	super SuperSubhandler
 }
 
+// NewFixed .
 func NewFixed(conf config.Config, store store.Store) *FixedSubhandler {
 	return &FixedSubhandler{
 		Base:  *NewBase(conf, store),
@@ -19,6 +20,7 @@ func NewFixed(conf config.Config, store store.Store) *FixedSubhandler {
 	}
 }
 
+// HandleCreate .
 func (h FixedSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err error) {
 	nep, err := h.store.GetNetEndpointByID(containerMeta.ID())
 	if err != nil {
@@ -37,6 +39,7 @@ func (h FixedSubhandler) HandleCreate(containerMeta *cni.ContainerMeta) (err err
 	return h.BorrowNetEndpoint(containerMeta, nep)
 }
 
+// HandleStart .
 func (h FixedSubhandler) HandleStart(containerMeta *cni.ContainerMeta) (err error) {
 	nep, err := h.store.GetNetEndpointByID(containerMeta.ID())
 	if err != nil {
@@ -52,6 +55,7 @@ func (h FixedSubhandler) HandleStart(containerMeta *cni.ContainerMeta) (err erro
 	return h.CreateNetEndpoint(containerMeta)
 }
 
+// HandleDelete .
 func (h FixedSubhandler) HandleDelete(containerMeta *cni.ContainerMeta) (err error) {
 	nep, err := h.store.GetNetEndpointByID(containerMeta.ID())
 	if err != nil {

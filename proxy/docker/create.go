@@ -351,6 +351,6 @@ func (handler containerCreateHandler) adaptRequestForCNI(body utils.Object) (err
 		}
 	}
 
-	return
+	return nil
 
 }

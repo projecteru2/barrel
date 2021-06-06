@@ -126,7 +126,7 @@ func (handler containerDeleteHandler) isFixedIPCNIContainer(containerInfo contai
 }
 
 func (handler containerDeleteHandler) releaseCNIResources(id string) (err error) {
-	return handler.cniBase.RemoveNetowrk(id)
+	return handler.cniBase.RemoveNetwork(id)
 }
 
 func (handler containerDeleteHandler) releaseMounts(containerInfo containerInspectResult) {

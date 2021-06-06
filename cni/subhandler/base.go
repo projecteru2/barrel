@@ -13,11 +13,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Base in fact isn't a subhandler, just provides some common functions
 type Base struct {
 	store store.Store
 	conf  config.Config
 }
 
+// NewBase .
 func NewBase(conf config.Config, store store.Store) *Base {
 	return &Base{
 		conf:  conf,
@@ -25,6 +27,7 @@ func NewBase(conf config.Config, store store.Store) *Base {
 	}
 }
 
+// BorrowNetEndpoint will snatch the nep
 func (h *Base) BorrowNetEndpoint(containerMeta *cni.ContainerMeta, nep *cni.NetEndpoint) (err error) {
 	if err = h.store.OccupyNetEndpoint(containerMeta.ID(), nep); err != nil {
 		return
@@ -41,6 +44,7 @@ func (h *Base) BorrowNetEndpoint(containerMeta *cni.ContainerMeta, nep *cni.NetE
 	return containerMeta.Save()
 }
 
+// CreateNetEndpoint .
 func (h *Base) CreateNetEndpoint(containerMeta *cni.ContainerMeta) (err error) {
 	ipv4, err := containerMeta.IPv4()
 	if err != nil {
@@ -73,6 +77,7 @@ func (h *Base) CreateNetEndpoint(containerMeta *cni.ContainerMeta) (err error) {
 	return h.store.OccupyNetEndpoint(containerMeta.ID(), nep)
 }
 
+// DeleteDanglingNetwork .
 func (h *Base) DeleteDanglingNetwork(nep *cni.NetEndpoint) (err error) {
 	if err = h.withFlock(nep.IPv4, func() (err error) {
 		count, err := h.store.GetNetEndpointRefcount(nep)
@@ -83,18 +88,19 @@ func (h *Base) DeleteDanglingNetwork(nep *cni.NetEndpoint) (err error) {
 			return
 		}
 
-		log.Info("refcount back to zero, cleanup: %+v", nep)
+		log.Infof("refcount back to zero, cleanup: %+v", nep)
 		return h.store.DeleteNetEndpoint(nep)
 	}); err != nil {
 		return
 	}
-	cmd := exec.Command(os.Args[0], "cni", "--config", h.conf.Filename, "--command", "del")
+	cmd := exec.Command(os.Args[0], "cni", "--config", h.conf.Filename, "--command", "del") // nolint
 	cmd.Args[0] = "barrel-cni"
 	cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"id":"%s"}`, nep.Owner))
 	return errors.WithStack(cmd.Run())
 }
 
-func (h *Base) RemoveNetowrk(id string) (err error) {
+// RemoveNetwork will be exposed to docker proxy in delete phase
+func (h *Base) RemoveNetwork(id string) (err error) {
 	nep, err := h.store.GetNetEndpointByID(id)
 	if err != nil {
 		return
@@ -116,7 +122,13 @@ func (h *Base) withFlock(ip string, f func() error) (err error) {
 	if err != nil {
 		return
 	}
-	flock.Lock()
-	defer flock.Unlock()
+	if err = flock.Lock(); err != nil {
+		return
+	}
+	defer func() {
+		if e := flock.Unlock(); e != nil {
+			log.Errorf("failed to unlock %s: %+v", ip, e)
+		}
+	}()
 	return f()
 }
