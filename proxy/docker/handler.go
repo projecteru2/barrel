@@ -4,19 +4,20 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/projecteru2/barrel/cni/subhandler"
 	"github.com/projecteru2/barrel/proxy"
 	"github.com/projecteru2/barrel/vessel"
 )
 
 // NewHandler .
-func NewHandler(dockerDaemonSocket string, dialTimeout time.Duration, vess vessel.Helper) http.Handler {
+func NewHandler(dockerDaemonSocket string, dialTimeout time.Duration, cniBase *subhandler.Base, vess vessel.Helper) http.Handler {
 	client := newHTTPClient(dockerDaemonSocket, dialTimeout)
 
 	inspectAgent := newContainerInspectAgent(client)
 	return proxy.HTTPProxyHandler{
 		Handlers: []proxy.RequestHandler{
 			newContainerCreateHandler(client, vess),
-			newContainerDeleteHandler(client, vess, inspectAgent),
+			newContainerDeleteHandler(client, vess, inspectAgent, cniBase),
 			newContainerPruneHandle(client, vess),
 			newNetworkConnectHandler(client, vess, inspectAgent),
 			newNetworkDisconnectHandler(client, vess, inspectAgent),

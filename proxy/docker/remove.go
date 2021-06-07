@@ -7,12 +7,14 @@ import (
 	"strconv"
 
 	"github.com/juju/errors"
+	"github.com/projecteru2/barrel/cni/subhandler"
 	barrelHttp "github.com/projecteru2/barrel/http"
 	"github.com/projecteru2/barrel/proxy"
 	"github.com/projecteru2/barrel/resources"
 	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
 	"github.com/projecteru2/barrel/vessel"
+	log "github.com/sirupsen/logrus"
 )
 
 var regexDeleteContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/([a-zA-Z0-9][a-zA-Z0-9_.-]*)(\?.*)?`)
@@ -21,14 +23,16 @@ type containerDeleteHandler struct {
 	utils.LoggerFactory
 	inspectAgent containerInspectAgent
 	client       barrelHttp.Client
+	cniBase      *subhandler.Base
 	vessel.Helper
 }
 
-func newContainerDeleteHandler(client barrelHttp.Client, vess vessel.Helper, inspectAgent containerInspectAgent) proxy.RequestHandler {
+func newContainerDeleteHandler(client barrelHttp.Client, vess vessel.Helper, inspectAgent containerInspectAgent, cniBase *subhandler.Base) proxy.RequestHandler {
 	return containerDeleteHandler{
 		LoggerFactory: utils.NewObjectLogger("containerDeleteHandler"),
 		client:        client,
 		Helper:        vess,
+		cniBase:       cniBase,
 		inspectAgent:  inspectAgent,
 	}
 }
@@ -96,10 +100,33 @@ func (handler containerDeleteHandler) Handle(ctx proxy.HandleContext, response h
 }
 
 func (handler containerDeleteHandler) releaseResources(containerInfo containerInspectResult, removeVolumens bool) {
-	handler.releaseReservedIP(containerInfo.ID)
+	if handler.isFixedIPCNIContainer(containerInfo) {
+		if err := handler.releaseCNIResources(containerInfo.ID); err != nil {
+			log.Errorf("release CNI resources error: %s, %+v", containerInfo.ID, err)
+		}
+	} else {
+		handler.releaseReservedIP(containerInfo.ID)
+	}
 	if removeVolumens {
 		handler.releaseMounts(containerInfo)
 	}
+}
+
+func (handler containerDeleteHandler) isFixedIPCNIContainer(containerInfo containerInspectResult) bool {
+	if containerInfo.HostConfig.Runtime != "barrel-cni" {
+		return false
+	}
+
+	for _, e := range containerInfo.Config.Env {
+		if e == "fixed-ip=1" {
+			return true
+		}
+	}
+	return false
+}
+
+func (handler containerDeleteHandler) releaseCNIResources(id string) (err error) {
+	return handler.cniBase.RemoveNetwork(id)
 }
 
 func (handler containerDeleteHandler) releaseMounts(containerInfo containerInspectResult) {

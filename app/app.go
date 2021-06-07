@@ -16,6 +16,7 @@ import (
 	calicov3 "github.com/projectcalico/libcalico-go/lib/clientv3"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/projecteru2/barrel/cni/subhandler"
 	"github.com/projecteru2/barrel/driver"
 	calicoDriver "github.com/projecteru2/barrel/driver/calico"
 	fixedIPDriver "github.com/projecteru2/barrel/driver/fixedip"
@@ -42,6 +43,7 @@ type Application struct {
 	KeyFile                string
 	ShutdownTimeout        time.Duration
 	EnableCNMAgent         bool
+	CNIBase                *subhandler.Base
 }
 
 // Run .
@@ -128,7 +130,7 @@ func (app Application) defaultMode() ([]service.Service, error) {
 		services = append(services, agent)
 	}
 	services = append(services, proxyService{
-		Server: barrelHttp.NewServer(docker.NewHandler(app.DockerDaemonUnixSocket, app.DialTimeout, vess)),
+		Server: barrelHttp.NewServer(docker.NewHandler(app.DockerDaemonUnixSocket, app.DialTimeout, app.CNIBase, vess)),
 		gid:    gid,
 		tlsConfig: barrelHttp.TLSConfig{
 			CertFile: app.CertFile,
