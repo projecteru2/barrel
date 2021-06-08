@@ -17,7 +17,7 @@ import (
 	"github.com/juju/errors"
 )
 
-var regexCreateContainer *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/create(\?.*)?`)
+var regexCreateContainer = regexp.MustCompile(`/(.*?)/containers/create(\?.*)?`)
 
 // IPAMConfig .
 type IPAMConfig struct {

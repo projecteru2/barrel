@@ -12,7 +12,7 @@ import (
 	"github.com/projecteru2/barrel/vessel"
 )
 
-var regexPruneContainers *regexp.Regexp = regexp.MustCompile(`/(.*?)/containers/prune(\?.*)?`)
+var regexPruneContainers = regexp.MustCompile(`/(.*?)/containers/prune(\?.*)?`)
 
 type containerPruneHandle struct {
 	utils.LoggerFactory

@@ -44,7 +44,7 @@ func (client httpClientImpl) Request(req *http.Request) (clientResponse *http.Re
 	return
 }
 
-var regexpHTTPScheme *regexp.Regexp = regexp.MustCompile("((http)|(https))://.*")
+var regexpHTTPScheme = regexp.MustCompile("((http)|(https))://.*")
 
 func processURL(url string) string {
 	if strings.HasPrefix(url, "/") {
