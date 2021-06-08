@@ -34,14 +34,20 @@ func NewPluginServer(driverName string, ipamDriverName string) PluginServer {
 
 func (s pluginServer) ServeIpam(ipam pluginIpam.Ipam) error {
 	log.Infoln("start ipam.")
-	err := pluginIpam.NewHandler(ipamWrapper{ipam}).ServeUnix(s.ipamDriverName, 0)
-	log.Infoln("ipam has stopped working.")
-	return err
+	if err := pluginIpam.NewHandler(ipamWrapper{ipam}).ServeUnix(s.ipamDriverName, 0); err != nil {
+		log.WithError(err).Error("ipam has stopped working.")
+		return err
+	}
+	log.Info("ipam stopped.")
+	return nil
 }
 
 func (s pluginServer) ServeNetwork(driver pluginNetwork.Driver) error {
 	log.Infoln("start net driver.")
-	err := pluginNetwork.NewHandler(driverWrapper{driver}).ServeUnix(s.driverName, 0)
-	log.Infof("net driver has stopped working: %+v", err)
-	return err
+	if err := pluginNetwork.NewHandler(driverWrapper{driver}).ServeUnix(s.driverName, 0); err != nil {
+		log.WithError(err).Error("net driver has stopped working.")
+		return err
+	}
+	log.Info("net driver stopped.")
+	return nil
 }

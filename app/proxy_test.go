@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"io/fs"
 	"sync"
 	"testing"
 	"time"
@@ -13,9 +14,21 @@ import (
 	"github.com/projecteru2/barrel/http/mocks"
 	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/utils"
+	"github.com/projecteru2/barrel/utils/os"
+	osMocks "github.com/projecteru2/barrel/utils/os/mocks"
 )
 
 func TestTerminateProxyService(t *testing.T) {
+	mockOS := &osMocks.OS{}
+	cancel := os.Mock(mockOS)
+	defer cancel()
+
+	mockOS.On("Stat", mock.Anything).Return(func(file string) fs.FileInfo {
+		return os.FileInfo{}
+	}, func(file string) error {
+		return nil
+	})
+
 	server := mocks.Server{}
 	servicesLaunched := sync.WaitGroup{}
 	servicesLaunched.Add(3)
@@ -61,9 +74,12 @@ func TestTerminateProxyService(t *testing.T) {
 	})
 
 	service := proxyService{
-		Server:    &server,
-		gid:       1,
-		tlsConfig: http.TLSConfig{},
+		Server: &server,
+		gid:    1,
+		tlsConfig: http.TLSConfig{
+			CertFile: "/etc/eru/barrel/cert.ca",
+			KeyFile:  "/etc/eru/barrel/key.ca",
+		},
 		hosts: []string{
 			"unix:///var/run/barrel.sock",
 			"http://127.0.0.1:80",

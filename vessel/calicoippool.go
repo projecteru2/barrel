@@ -138,7 +138,9 @@ func (m manager) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAd
 		log.Errorln("IP assignment error")
 		return types.IPAddress{}, err
 	}
-	IPs := append(IPsV4, IPsV6...)
+	var IPs []caliconet.IPNet
+	IPs = append(IPs, IPsV4...)
+	IPs = append(IPs, IPsV6...)
 
 	// We should only have one IP address assigned at this point.
 	if len(IPs) != 1 {

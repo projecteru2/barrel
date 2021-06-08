@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/docker/go-connections/sockets"
 )
 
@@ -42,9 +44,22 @@ func (server *httpServer) ServeUnix(address string, gid int) error {
 		err      error
 	)
 	if listener, err = sockets.NewUnixSocket(address, gid); err != nil {
+		log.WithError(err).WithField(
+			"Address", address,
+		).WithField(
+			"GID", gid,
+		).Error("Create unix socket listener error")
 		return err
 	}
-	return server.Serve(listener)
+	if err = server.Serve(listener); err != nil {
+		log.WithError(err).WithField(
+			"Address", address,
+		).WithField(
+			"GID", gid,
+		).Error("Serve http server over unix socket error")
+		return err
+	}
+	return nil
 }
 
 func (server *httpServer) ServeHTTP(address string) error {
@@ -53,9 +68,18 @@ func (server *httpServer) ServeHTTP(address string) error {
 		err      error
 	)
 	if listener, err = net.Listen("tcp", address); err != nil {
+		log.WithError(err).WithField(
+			"Address", address,
+		).Error("Create tcp socket listener for http server error")
 		return err
 	}
-	return server.Serve(listener)
+	if err = server.Serve(listener); err != nil {
+		log.WithError(err).WithField(
+			"Address", address,
+		).Error("Serve http server error")
+		return err
+	}
+	return nil
 }
 
 func (server *httpServer) ServeHTTPS(address string, config TLSConfig) error {
@@ -64,9 +88,20 @@ func (server *httpServer) ServeHTTPS(address string, config TLSConfig) error {
 		err      error
 	)
 	if listener, err = net.Listen("tcp", address); err != nil {
+		log.WithError(err).WithField(
+			"Address", address,
+		).Error("Create tcp socket listener for https server error")
 		return err
 	}
-	return server.ServeTLS(listener, config.CertFile, config.KeyFile)
+	if err = server.ServeTLS(listener, config.CertFile, config.KeyFile); err != nil {
+		log.WithError(err).WithField(
+			"Address", address,
+		).WithField(
+			"TLSConfig", config,
+		).Error("Serve https server error")
+		return err
+	}
+	return nil
 }
 
 func (server *httpServer) Close(ctx context.Context) error {
