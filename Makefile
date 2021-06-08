@@ -15,7 +15,7 @@ deps:
 
 test:
 	go vet `go list ./... | grep -v '/vendor/' | grep -v '/tools'`
-	go test -timeout 120s -count=1 -cover \
+	go test -timeout 30s -count=1 -cover \
 		./app/... \
 		./proxy/... \
 		./vessel/... \

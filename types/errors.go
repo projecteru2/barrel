@@ -7,8 +7,6 @@ var (
 	ErrCIDRNotInPool = errors.New("The requested subnet must match the CIDR of a configured Calico IP Pool")
 	// ErrNoHosts .
 	ErrNoHosts = errors.New("can't create proxy without hosts")
-	// ErrCertAndKeyMissing .
-	ErrCertAndKeyMissing = errors.New("can't create https host without cert and key")
 	// ErrServiceShutdown .
 	ErrServiceShutdown = errors.New("Service shutdown")
 	// ErrCannotDisposeService .

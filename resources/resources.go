@@ -15,7 +15,7 @@ func Init(pathPrefixes []string) {
 	resPathPrefixes = pathPrefixes
 }
 
-// RecycleResources .
+// RecycleMounts .
 func RecycleMounts(paths []string) {
 	paths = minify(paths)
 
