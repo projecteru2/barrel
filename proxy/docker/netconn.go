@@ -15,7 +15,7 @@ import (
 )
 
 // althrough netconn doesn't have a query string, we still match as if it has a query string
-var regexNetworkConnect *regexp.Regexp = regexp.MustCompile(`/(.*?)/networks/([a-zA-Z0-9][a-zA-Z0-9_.-]*)/connect(\?.*)?`)
+var regexNetworkConnect = regexp.MustCompile(`/(.*?)/networks/([a-zA-Z0-9][a-zA-Z0-9_.-]*)/connect(\?.*)?`)
 
 type networkConnectHandler struct {
 	utils.LoggerFactory
