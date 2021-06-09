@@ -14,7 +14,7 @@ import (
 	"github.com/projecteru2/barrel/vessel"
 )
 
-var regexNetworkDisconnect *regexp.Regexp = regexp.MustCompile(`/(.*?)/networks/([a-zA-Z0-9][a-zA-Z0-9_.-]*)/disconnect(\?.*)?`)
+var regexNetworkDisconnect = regexp.MustCompile(`/(.*?)/networks/([a-zA-Z0-9][a-zA-Z0-9_.-]*)/disconnect(\?.*)?`)
 
 type networkDisconnectHandler struct {
 	utils.LoggerFactory

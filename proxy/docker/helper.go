@@ -60,7 +60,7 @@ func getStringMember(parent utils.Object, key string) (result string, err error)
 
 func requestDockerd(client barrelHttp.Client, req *http.Request, body []byte) (clientResp *http.Response, err error) {
 	var (
-		clientReq http.Request = *req
+		clientReq = *req
 	)
 	clientReq.ContentLength = int64(len(body))
 	clientReq.Body = ioutil.NopCloser(bytes.NewReader(body))
