@@ -4,13 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"net/http"
 
 	"github.com/juju/errors"
 	barrelHttp "github.com/projecteru2/barrel/http"
 	"github.com/projecteru2/barrel/types"
+	"github.com/projecteru2/barrel/vessel"
+	"github.com/projecteru2/barrel/proxy"
 	"github.com/projecteru2/barrel/utils"
 )
+
+var regexInspectContainer = regexp.MustCompile(`/[^/]+/containers/[^/]+/json`)
 
 type containerInspectResult struct {
 	ID         string `json:"Id"`
@@ -92,4 +97,48 @@ func (handler containerInspectAgent) Inspect(identifier string, version string) 
 		return container, err
 	}
 	return container, errors.Errorf("Inspect container(%s) error, result: %s", identifier, string(data))
+}
+
+type containerInspectHandler struct {
+	utils.LoggerFactory
+	client barrelHttp.Client
+	vess vessel.Helper
+}
+
+func newContainerInspectHandler(client barrelHttp.Client, vess vessel.Helper) proxy.RequestHandler {
+	return containerInspectHandler{
+		LoggerFactory: utils.NewObjectLogger("containerInspectHandler"),
+		client: client,
+		vess: vess,
+	}
+}
+
+func (handler containerInspectHandler) Handle(ctx proxy.HandleContext, response http.ResponseWriter, req *http.Request) {
+	logger := handler.Logger("Handle")
+
+	if req.Method != http.MethodGet || !regexInspectContainer.MatchString(req.URL.Path) {
+		ctx.Next()
+		return
+	}
+
+	logger.Debug("container inspect request")
+	resp, err := handler.client.Request(req)
+	if err != nil {
+		logger.Errorf("request failed %+v", err)
+		if e := utils.WriteBadGateWayResponse(
+			response,
+			utils.HTTPSimpleMessageResponseBody{
+				Message: "send container inspect request to docker socket error",
+			},
+		); e != nil {
+			logger.Errorf("write response failed %+v", err)
+		}
+		return
+	}
+	defer resp.Body.Close()
+
+	//resp = handler.injectNetworkforCNI(resp)
+	if err = utils.Forward(resp, response); err != nil {
+		logger.Errorf("forward failed %+v", err)
+	}
 }
