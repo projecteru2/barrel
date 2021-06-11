@@ -2,13 +2,10 @@ package cni
 
 import (
 	"fmt"
-	"os/exec"
-	"regexp"
 	"strings"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/pkg/errors"
-	"github.com/projecteru2/barrel/utils"
+	"github.com/projecteru2/barrel/cni/utils"
 	"github.com/projecteru2/docker-cni/oci"
 )
 
@@ -22,14 +19,6 @@ type NetEndpoint struct {
 // ContainerMeta .
 type ContainerMeta struct {
 	Meta oci.ContainerMeta
-}
-
-var (
-	ipv4Pattern *regexp.Regexp
-)
-
-func init() { // nolint
-	ipv4Pattern = regexp.MustCompile(`\d+\.\d+\.\d+\.\d+`)
 }
 
 // RequiresFixedIP .
@@ -74,15 +63,7 @@ func (c ContainerMeta) Netns() (path string) {
 
 // IPv4 .
 func (c ContainerMeta) IPv4() (ip string, err error) {
-	args := []string{"ip", "-4", "a", "sh", "eth0"}
-	var out []byte
-	if err = utils.WithNetns(c.Netns(), func() error {
-		out, err = exec.Command(args[0], args[1:]...).Output() // nolint
-		return errors.WithStack(err)
-	}); err != nil {
-		return
-	}
-	return string(ipv4Pattern.Find(out)), nil
+	return utils.ProbeIPv4(c.Netns())
 }
 
 // Save .
