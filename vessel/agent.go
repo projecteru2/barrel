@@ -6,6 +6,7 @@ import (
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/projecteru2/barrel/docker"
 	"github.com/projecteru2/barrel/service"
@@ -27,8 +28,7 @@ type AgentConfig struct {
 	PollTimeout  time.Duration
 }
 
-type networkAgentImpl struct {
-	utils.LoggerFactory
+type networkAgent struct {
 	hostname        string
 	pollers         pollers
 	allocator       CalicoIPAllocator
@@ -48,130 +48,127 @@ func NewAgent(vess Vessel, config AgentConfig) interface {
 	CNMAgent
 	service.Service
 } {
-	return &networkAgentImpl{
-		LoggerFactory:   utils.NewObjectLogger("networkAgentImpl"),
+	return &networkAgent{
 		pollers:         newPollers(),
 		allocator:       vess.CalicoIPAllocator(),
 		containerVessel: vess.ContainerVessel(),
 		minPollInterval: config.MinInterval,
 		pollInterval:    config.PollInterval,
 		pollTimeout:     config.PollTimeout,
-		notifier: notifier{
-			LoggerFactory: utils.NewObjectLogger("notifier"),
-		},
+		notifier:        notifier{},
 	}
 }
 
-func (impl *networkAgentImpl) Serve(ctx context.Context) (service.Disposable, error) {
-	logger := impl.Logger("Serve")
-	impl.chErr = make(chan error)
-	impl.serve()
+func (agent *networkAgent) Serve(ctx context.Context) (service.Disposable, error) {
+	logger := agent.logger("Serve")
+	agent.chErr = make(chan error)
+	agent.serve()
 
 	select {
-	case err := <-impl.chErr:
+	case err := <-agent.chErr:
 		logger.Warnf("End with error, cause=%v", err)
-		return impl, err
+		return agent, err
 	case <-ctx.Done():
 		logger.Info("Done")
-		return impl, nil
+		return agent, nil
 	}
 }
 
-func (impl *networkAgentImpl) serve() {
-	logger := impl.Logger("serve")
+func (agent *networkAgent) serve() {
+	logger := agent.logger("serve")
 	go func() {
 		logger.Info("starting")
 		for {
 			logger.Info("polling")
-			if err := impl.poll(); err != nil {
+			if err := agent.poll(); err != nil {
 				logger.Errorf("polling encountered error, cause=%v", err)
-				impl.chErr <- err
+				agent.chErr <- err
 				logger.Info("polling end")
 				return
 			}
-			if impl.closed.Get() {
+			if agent.closed.Get() {
 				logger.Info("interval closed, waiting for polling signal")
 				ch := make(chan int)
-				impl.notifier.wait(ch)
-				impl.notifier.cancel(ch)
+				agent.notifier.wait(ch)
+				agent.notifier.cancel(ch)
 				close(ch)
 				<-ch
 				continue
 			}
-			impl.next()
+			agent.next()
 		}
 	}()
 }
 
-func (impl *networkAgentImpl) next() {
-	logger := impl.Logger("next")
+func (agent *networkAgent) next() {
+	logger := agent.logger("next")
 	logger.Info("waiting for next polling signal")
-	if impl.pollers.size() > 0 {
-		<-time.After(impl.minPollInterval)
+	if agent.pollers.size() > 0 {
+		<-time.After(agent.minPollInterval)
 		logger.Info("min inverval timeout signal arrived")
 		return
 	}
 
 	logger.Info("make ch")
 	ch := make(chan int)
-	impl.notifier.wait(ch)
-	defer impl.notifier.cancel(ch)
+	agent.notifier.wait(ch)
+	defer agent.notifier.cancel(ch)
 	defer close(ch)
 
 	select {
-	case <-time.After(impl.pollInterval):
+	case <-time.After(agent.pollInterval):
 		logger.Info("timeout signal arrived")
 	case <-ch:
 		logger.Info("poll signal arrived")
 	}
 }
 
-func (impl *networkAgentImpl) Dispose(ctx context.Context) error {
-	logger := impl.Logger("Dispose")
+func (agent *networkAgent) Dispose(ctx context.Context) error {
+	logger := agent.logger("Dispose")
 	logger.Info("Disposeing")
-	impl.closed.Set(true)
+	agent.closed.Set(true)
 	return nil
 }
 
-func (impl *networkAgentImpl) NotifyEndpointCreated(networkID string, endpointID string) {
+func (agent *networkAgent) NotifyEndpointCreated(networkID string, endpointID string) {
 	// and poller and send notify signal
-	logger := impl.Logger("NotifyEndpointCreated")
-	impl.pollers.newPoller(endpointUpdatePoller{
+	logger := agent.logger("NotifyEndpointCreated")
+	agent.pollers.newPoller(endpointUpdatePoller{
 		networkID:  networkID,
 		endpointID: endpointID,
 		add:        true,
-		timeout:    time.Now().Add(impl.pollTimeout),
+		timeout:    time.Now().Add(agent.pollTimeout),
 	})
 	logger.Info("Send polling signal")
-	impl.notifier.send(0)
+	agent.notifier.send(0)
 	logger.Info("End")
 }
 
-func (impl *networkAgentImpl) NotifyEndpointRemoved(networkID string, endpointID string) {
-	logger := impl.Logger("NotifyEndpointRemoved")
+func (agent *networkAgent) NotifyEndpointRemoved(networkID string, endpointID string) {
+	logger := agent.logger("NotifyEndpointRemoved")
 	// if there are polling events we have to wait polling done
-	impl.mutex.Lock()
-	defer impl.mutex.Unlock()
+	agent.mutex.Lock()
+	defer agent.mutex.Unlock()
 	// we will remove pollers if there are any existes
-	impl.pollers.newPoller(endpointUpdatePoller{
+	agent.pollers.newPoller(endpointUpdatePoller{
 		networkID:  networkID,
 		endpointID: endpointID,
 		add:        false,
-		timeout:    time.Now().Add(impl.pollTimeout),
+		timeout:    time.Now().Add(agent.pollTimeout),
 	})
 	logger.Info("Send polling signal")
-	impl.notifier.send(0)
+	agent.notifier.send(0)
 	logger.Info("End")
 	// remove container
 }
 
-func (impl *networkAgentImpl) poll() error {
-	logger := impl.Logger("poll")
+func (agent *networkAgent) poll() error {
+	logger := agent.logger("poll")
 	logger.Info("start")
-	impl.mutex.Lock()
-	defer impl.mutex.Unlock()
+	agent.mutex.Lock()
+	defer agent.mutex.Unlock()
 
-	if impl.pollers.size() == 0 {
+	if agent.pollers.size() == 0 {
 		logger.Info("poller size == 0, return")
 		return nil
 	}
@@ -181,7 +178,7 @@ func (impl *networkAgentImpl) poll() error {
 		containerInfos   []types.ContainerInfo
 		err              error
 	)
-	if dockerContainers, err = impl.dockerClient.ContainerList(
+	if dockerContainers, err = agent.dockerClient.ContainerList(
 		context.Background(),
 		dockerTypes.ContainerListOptions{},
 	); err != nil {
@@ -189,37 +186,41 @@ func (impl *networkAgentImpl) poll() error {
 		return err
 	}
 
-	if containerInfos, err = impl.containerVessel.ListContainers(); err != nil {
+	if containerInfos, err = agent.containerVessel.ListContainers(); err != nil {
 		logger.Errorf("ListContainers Error, %v", err)
 		return err
 	}
 
-	matchEvent := newMatchEvent(impl.hostname, impl.allocator, dockerContainers, containerInfos)
+	matchEvent := newMatchEvent(agent.hostname, agent.allocator, dockerContainers, containerInfos)
 	logger.Info("match pollers")
-	impl.pollers.match(matchEvent)
+	agent.pollers.match(matchEvent)
 	r := matchEvent.result()
 	if len(r) > 0 {
-		impl.commit(r)
+		agent.commit(r)
 	}
 	logger.Info("end")
 	return nil
 }
 
-func (impl *networkAgentImpl) commit(pollResults []pollResult) {
-	logger := impl.Logger("commit")
+func (agent *networkAgent) commit(pollResults []pollResult) {
+	logger := agent.logger("commit")
 	logger.Infof("start, matched results = %v", pollResults)
 	for _, result := range pollResults {
 		if result.add {
-			if err := impl.containerVessel.UpdateContainer(context.Background(), result.containerInfo); err != nil {
+			if err := agent.containerVessel.UpdateContainer(context.Background(), result.containerInfo); err != nil {
 				logger.Errorf("UpdateContainer error, cause=%v", err)
 			}
 			continue
 		}
-		if err := impl.containerVessel.DeleteContainer(context.Background(), result.containerInfo); err != nil {
+		if err := agent.containerVessel.DeleteContainer(context.Background(), result.containerInfo); err != nil {
 			logger.Errorf("DeleteContainer error, cause=%v", err)
 		}
 	}
 	logger.Info("end")
+}
+
+func (agent *networkAgent) logger(method string) *log.Entry {
+	return log.WithField("Receiver", "networkAgent").WithField("Method", method)
 }
 
 type pollResult struct {
@@ -239,7 +240,6 @@ func (poller endpointUpdatePoller) isTimeout(now time.Time) bool {
 }
 
 type pollers struct {
-	utils.LoggerFactory
 	mutex   sync.Mutex
 	pSize   int
 	pollers map[string]map[string]endpointUpdatePoller
@@ -247,8 +247,7 @@ type pollers struct {
 
 func newPollers() pollers {
 	return pollers{
-		LoggerFactory: utils.ObjectLogger{ObjectName: "vessel/pollers"},
-		pollers:       make(map[string]map[string]endpointUpdatePoller),
+		pollers: make(map[string]map[string]endpointUpdatePoller),
 	}
 }
 
@@ -371,7 +370,7 @@ func (event matchEvent) match(poller endpointUpdatePoller) (bool, error) {
 }
 
 func (event matchEvent) matchRemovePoller(poller endpointUpdatePoller) (bool, error) {
-	logger := event.Logger("matchRemovePoller")
+	logger := event.logger("matchRemovePoller")
 	var (
 		m  map[string]dockerTypes.Container
 		ok bool
@@ -392,7 +391,7 @@ func (event matchEvent) matchRemovePoller(poller endpointUpdatePoller) (bool, er
 }
 
 func (event matchEvent) matchAddPoller(poller endpointUpdatePoller) (bool, error) {
-	logger := event.Logger("matchAddPoller")
+	logger := event.logger("matchAddPoller")
 	var (
 		err error
 		m   map[string]dockerTypes.Container
@@ -417,7 +416,7 @@ func (event matchEvent) matchAddPoller(poller endpointUpdatePoller) (bool, error
 }
 
 func (event matchEvent) makeAddPollResult(c dockerTypes.Container) (pollResult, error) {
-	logger := event.Logger("makeAddPollResult")
+	logger := event.logger("makeAddPollResult")
 	var networks []types.Network
 	// here we will try call docker api every iteration in order to avoid network change
 	// and we should add a lock on calico plugin to lock on create network so we can cache network inspect result here
@@ -461,8 +460,10 @@ func (event matchEvent) makeAddPollResult(c dockerTypes.Container) (pollResult, 
 	return pollResult{
 		add: true,
 		containerInfo: types.ContainerInfo{
-			ID:       c.ID,
-			HostName: event.hostname,
+			Container: types.Container{
+				ID:       c.ID,
+				HostName: event.hostname,
+			},
 			Networks: networks,
 		},
 	}, nil
@@ -488,8 +489,11 @@ func (event matchEvent) makeRemovePollResult(poller endpointUpdatePoller) {
 	}
 }
 
+func (event matchEvent) logger(method string) *log.Entry {
+	return log.WithField("Receiver", "matchEvent").WithField("Method", method)
+}
+
 type notifier struct {
-	utils.LoggerFactory
 	mutex  sync.Mutex
 	chs    []chan<- int
 	hasSig bool
@@ -497,7 +501,7 @@ type notifier struct {
 }
 
 func (n *notifier) wait(ch chan<- int) {
-	logger := n.Logger("wait")
+	logger := n.logger("wait")
 	logger.Info("start")
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
@@ -545,7 +549,7 @@ func (n *notifier) remove(ch chan<- int) {
 }
 
 func (n *notifier) cancel(ch chan<- int) {
-	logger := n.Logger("cancel")
+	logger := n.logger("cancel")
 	logger.Info("start")
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
@@ -555,7 +559,7 @@ func (n *notifier) cancel(ch chan<- int) {
 }
 
 func (n *notifier) send(sig int) {
-	logger := n.Logger("send")
+	logger := n.logger("send")
 	logger.Info("start")
 
 	n.mutex.Lock()
@@ -574,4 +578,8 @@ func (n *notifier) send(sig int) {
 		c <- sig
 	}
 	n.chs = n.chs[:0]
+}
+
+func (n *notifier) logger(method string) *log.Entry {
+	return log.WithField("Receiver", "networkAgentNotifier").WithField("Method", method)
 }

@@ -21,11 +21,11 @@ type RequestHandler interface {
 	Handle(HandleContext, http.ResponseWriter, *http.Request)
 }
 
-type handleContextImpl struct {
+type handleContext struct {
 	next bool
 }
 
-func (ctx *handleContextImpl) Next() {
+func (ctx *handleContext) Next() {
 	ctx.next = true
 }
 
@@ -40,7 +40,7 @@ func (ph HTTPProxyHandler) ServeHTTP(res http.ResponseWriter, req *http.Request)
 	utils.PrintHeaders("ServerRequestHeaders:", req.Header)
 
 	for _, handler := range ph.Handlers {
-		ctx := &handleContextImpl{}
+		ctx := &handleContext{}
 		handler.Handle(ctx, res, req)
 		if !ctx.next {
 			return

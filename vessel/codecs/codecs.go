@@ -1,4 +1,4 @@
-package codec
+package codecs
 
 import (
 	"encoding/json"

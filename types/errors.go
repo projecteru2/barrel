@@ -3,6 +3,8 @@ package types
 import "github.com/juju/errors"
 
 var (
+	// ErrCriticalError .
+	ErrCriticalError = errors.New("The error should not be happened, contact admin")
 	// ErrCIDRNotInPool .
 	ErrCIDRNotInPool = errors.New("The requested subnet must match the CIDR of a configured Calico IP Pool")
 	// ErrNoHosts .
@@ -29,4 +31,8 @@ var (
 	ErrIPInUse = errors.New("ip address already in use")
 	// ErrFixedIPNotAllocated .
 	ErrFixedIPNotAllocated = errors.New("fixed-ip not allocated")
+	// ErrFixedIPHasBorrower .
+	ErrFixedIPHasBorrower = errors.New("fixed-ip has borrower")
+	// ErrMaxRetryCountExceeded .
+	ErrMaxRetryCountExceeded = errors.New("max retry count exceeded")
 )
