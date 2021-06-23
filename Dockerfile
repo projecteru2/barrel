@@ -1,4 +1,4 @@
-FROM golang:1.14.3-alpine3.11 AS BUILD
+FROM golang:1.16-alpine3.14 AS BUILD
 LABEL MAINTAINER="Replica <yumeko@outlook.com>"
 
 # make binary
