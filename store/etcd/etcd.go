@@ -2,24 +2,17 @@ package etcd
 
 import (
 	"context"
-	"strings"
 	"sync"
-	"time"
 
+	"github.com/coreos/etcd/clientv3"
 	"github.com/juju/errors"
-	"github.com/projecteru2/barrel/store"
 
-	"github.com/projectcalico/libcalico-go/lib/apiconfig"
-	"go.etcd.io/etcd/clientv3"
+	"github.com/projecteru2/barrel/store"
 )
 
 const (
 	cmpVersion = "version"
 	cmpValue   = "value"
-
-	clientTimeout    = 10 * time.Second
-	keepaliveTime    = 30 * time.Second
-	keepaliveTimeout = 10 * time.Second
 )
 
 var (
@@ -27,128 +20,174 @@ var (
 	errNoOps      = errors.New("No ops")
 )
 
-// Etcd .
-type Etcd struct {
-	cliv3 *clientv3.Client
+type etcdStore struct {
+	cli clientv3.KV
 }
 
-// NewClient .
-func NewClient(ctx context.Context, config *apiconfig.CalicoAPIConfig) (*Etcd, error) {
-	endpoints := strings.Split(config.Spec.EtcdConfig.EtcdEndpoints, ",")
-	cliv3, err := clientv3.New(clientv3.Config{
-		Endpoints:            endpoints,
-		DialTimeout:          clientTimeout,
-		DialKeepAliveTime:    keepaliveTime,
-		DialKeepAliveTimeout: keepaliveTimeout,
-		Context:              ctx,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return &Etcd{cliv3}, nil
+// NewEtcdStore .
+func NewEtcdStore(cli *clientv3.Client) store.Store {
+	return &etcdStore{cli}
 }
 
 // Get .
-func (e *Etcd) Get(ctx context.Context, decoder store.Decoder) (bool, error) {
+func (e *etcdStore) Get(ctx context.Context, codec store.Codec) error {
 	var (
 		resp *clientv3.GetResponse
 		err  error
 	)
-	if resp, err = e.cliv3.Get(ctx, decoder.Key()); err != nil {
-		return false, err
+	if resp, err = e.cli.Get(ctx, codec.Key()); err != nil {
+		return err
 	}
 	if len(resp.Kvs) == 0 {
-		return false, nil
+		return store.ErrKVNotExists
 	}
 	kv := resp.Kvs[0]
-	err = decoder.Decode(string(kv.Value))
-	decoder.SetVersion(kv.Version)
-	return err == nil, err
+	codec.SetVersion(kv.Version)
+	return codec.Decode(string(kv.Value))
 }
 
 // Put save a key value
-func (e *Etcd) Put(ctx context.Context, encoder store.Encoder) error {
+func (e *etcdStore) Put(ctx context.Context, codec store.Codec) error {
 	var (
-		key = encoder.Key()
-		val string
-		err error
+		key  = codec.Key()
+		val  string
+		err  error
+		resp *clientv3.PutResponse
 	)
 	if key == "" {
 		return errKeyIsBlank
 	}
-	if val, err = encoder.Encode(); err != nil {
+	if val, err = codec.Encode(); err != nil {
 		return err
 	}
-	_, err = e.cliv3.Put(ctx, key, val)
-	return err
+	if resp, err = e.cli.Put(ctx, key, val, clientv3.WithPrevKV()); err != nil {
+		return err
+	}
+	if resp.PrevKv != nil {
+		codec.SetVersion(resp.PrevKv.Version + 1)
+	} else {
+		codec.SetVersion(0)
+	}
+	return nil
 }
 
 // Delete delete key
 // returns true on delete count > 0
-func (e *Etcd) Delete(ctx context.Context, encoder store.Encoder) (bool, error) {
+func (e *etcdStore) Delete(ctx context.Context, codec store.Codec) error {
 	var (
-		key  = encoder.Key()
+		key  = codec.Key()
 		resp *clientv3.DeleteResponse
 		err  error
 	)
 	if key == "" {
-		return false, errKeyIsBlank
+		return errKeyIsBlank
 	}
-	if resp, err = e.cliv3.Delete(ctx, key, clientv3.WithPrevKV()); err != nil {
-		return false, err
+	if resp, err = e.cli.Delete(ctx, key, clientv3.WithPrevKV()); err != nil {
+		return err
 	}
-	return len(resp.PrevKvs) > 0, nil
+	if len(resp.PrevKvs) == 0 {
+		return store.ErrKVNotExists
+	}
+	return nil
 }
 
 // GetAndDelete delete key, and return value
 // returns true on delete count > 0
-func (e *Etcd) GetAndDelete(ctx context.Context, decoder store.Decoder) (bool, error) {
+func (e *etcdStore) GetAndDelete(ctx context.Context, codec store.Codec) error {
 	var (
-		key  = decoder.Key()
+		key  = codec.Key()
 		resp *clientv3.DeleteResponse
 		err  error
 	)
 	if key == "" {
-		return false, errKeyIsBlank
+		return errKeyIsBlank
 	}
-	if resp, err = e.cliv3.Delete(ctx, key, clientv3.WithPrevKV()); err != nil {
-		return false, err
+	if resp, err = e.cli.Delete(ctx, key, clientv3.WithPrevKV()); err != nil {
+		return err
 	}
 	if len(resp.PrevKvs) == 0 {
-		return false, nil
+		return store.ErrKVNotExists
 	}
-	err = decoder.Decode(string(resp.PrevKvs[0].Value))
-	return err == nil, err
+	codec.SetVersion(0)
+	return codec.Decode(string(resp.PrevKvs[0].Value))
 }
 
 // Update .
-func (e *Etcd) Update(ctx context.Context, encoder store.Encoder) (bool, error) {
+func (e *etcdStore) UpdateElseGet(ctx context.Context, codec store.Codec) (bool, error) {
 	var (
 		value string
 		err   error
 		resp  *clientv3.TxnResponse
 	)
-	if value, err = encoder.Encode(); err != nil {
+	if value, err = codec.Encode(); err != nil {
 		return false, err
 	}
-	key := encoder.Key()
-	prevVersion := encoder.Version()
-	if resp, err = e.cliv3.Txn(
+	key := codec.Key()
+	prevVersion := codec.Version()
+
+	if resp, err = e.cli.Txn(
 		ctx,
 	).If(
 		clientv3.Compare(clientv3.Version(key), "=", prevVersion),
 	).Then(
-		clientv3.OpPut(key, value),
+		clientv3.OpPut(key, value, clientv3.WithPrevKV()),
+	).Else(
+		clientv3.OpGet(key),
 	).Commit(); err != nil {
 		return false, err
 	}
-	return resp.Succeeded, err
+	if len(resp.Responses) != 1 {
+		return resp.Succeeded, store.ErrUnexpectedTxnResp
+	}
+
+	response := resp.Responses[0]
+	if resp.Succeeded {
+		r := response.GetResponsePut()
+		if r == nil {
+			return true, store.ErrUnexpectedTxnResp
+		}
+		if r.PrevKv == nil {
+			return true, store.ErrKVNotExists
+		}
+		codec.SetVersion(r.PrevKv.Version + 1)
+		return true, nil
+	}
+
+	r := response.GetResponseRange()
+	if r == nil {
+		return false, store.ErrUnexpectedTxnResp
+	}
+	if r.Count == 0 {
+		return false, store.ErrKVNotExists
+	}
+	kv := r.Kvs[0]
+	codec.SetVersion(kv.Version)
+	return false, codec.Decode(string(kv.Value))
+}
+
+// Update .
+func (e *etcdStore) Update(ctx context.Context, codec store.UpdateCodec) (bool, error) {
+	for {
+		var (
+			succeeded bool
+			err       error
+		)
+		if succeeded, err = e.UpdateElseGet(ctx, codec); err != nil {
+			return succeeded, err
+		}
+		if succeeded {
+			return true, nil
+		}
+		if !codec.Retry() {
+			return false, nil
+		}
+	}
 }
 
 // PutMulti .
-func (e *Etcd) PutMulti(ctx context.Context, encoders ...store.Encoder) error {
+func (e *etcdStore) PutMulti(ctx context.Context, codecs ...store.Codec) error {
 	data := make(map[string]string)
-	for _, encoder := range encoders {
+	for _, encoder := range codecs {
 		var (
 			key = encoder.Key()
 			val string
@@ -167,15 +206,16 @@ func (e *Etcd) PutMulti(ctx context.Context, encoders ...store.Encoder) error {
 }
 
 // BatchPut .
-func (e *Etcd) batchPut(
+func (e *etcdStore) batchPut(
 	ctx context.Context,
 	data map[string]string,
 	limit map[string]map[string]string,
 	opts ...clientv3.OpOption,
 ) (*clientv3.TxnResponse, error) {
-	ops := []clientv3.Op{}
-	failOps := []clientv3.Op{}
+
+	var ops, failOps []clientv3.Op
 	conds := []clientv3.Cmp{}
+
 	for key, val := range data {
 		op := clientv3.OpPut(key, val, opts...)
 		ops = append(ops, op)
@@ -196,7 +236,11 @@ func (e *Etcd) batchPut(
 	return e.doBatchOp(ctx, conds, ops, failOps)
 }
 
-func (e *Etcd) doBatchOp(ctx context.Context, conds []clientv3.Cmp, ops, failOps []clientv3.Op) (*clientv3.TxnResponse, error) {
+func (e *etcdStore) doBatchOp(
+	ctx context.Context,
+	conds []clientv3.Cmp,
+	ops, failOps []clientv3.Op,
+) (*clientv3.TxnResponse, error) {
 	if len(ops) == 0 {
 		return nil, errNoOps
 	}
@@ -215,11 +259,15 @@ func (e *Etcd) doBatchOp(ctx context.Context, conds []clientv3.Cmp, ops, failOps
 	wg := sync.WaitGroup{}
 	doOp := func(index int, ops []clientv3.Op) {
 		defer wg.Done()
-		txn := e.cliv3.Txn(ctx)
-		if len(conds) != 0 {
-			txn = txn.If(conds...)
-		}
-		resp, err := txn.Then(ops...).Else(failOps...).Commit()
+		resp, err := e.cli.Txn(
+			ctx,
+		).If(
+			conds...,
+		).Then(
+			ops...,
+		).Else(
+			failOps...,
+		).Commit()
 		resps[index] = resp
 		errs[index] = err
 	}

@@ -47,7 +47,7 @@ func NewIPPoolManager(cliv3 clientv3.Interface, dockerCli *dockerClient.Client, 
 		cliv3:         cliv3,
 		dockerCli:     dockerCli,
 		driverName:    driverName,
-		LoggerFactory: utils.NewObjectLogger("networkAgentImpl"),
+		LoggerFactory: utils.NewObjectLogger("networkAgent"),
 		hostname:      hostname,
 	}
 }
