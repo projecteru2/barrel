@@ -16,7 +16,7 @@ const (
 	FixedIPLabel = "fixed-ip"
 )
 
-func isFixedIPEnable(label utils.Any) bool {
+func flagEnabled(label utils.Any) bool {
 	if label.Null() {
 		return true
 	}
