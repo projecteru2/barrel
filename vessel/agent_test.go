@@ -36,8 +36,7 @@ func TestPollEvent(t *testing.T) {
 	matchEvent := newMatchEvent(
 		"localhost", mockAllocator(), dockerContainers, contaienrInfos)
 	pollers := pollers{
-		LoggerFactory: utils.ObjectLogger{ObjectName: "vessel/pollers"},
-		pollers:       make(map[string]map[string]endpointUpdatePoller),
+		pollers: make(map[string]map[string]endpointUpdatePoller),
 	}
 	pollers.newPoller(endpointUpdatePoller{
 		networkID:  "networkID",
@@ -55,8 +54,10 @@ func TestPollRemoveEvent(t *testing.T) {
 	dockerContainers := []dockerTypes.Container{}
 	contaienrInfos := []types.ContainerInfo{
 		{
-			ID:       "containerID",
-			HostName: "localhost",
+			Container: types.Container{
+				ID:       "containerID",
+				HostName: "localhost",
+			},
 			Networks: []types.Network{
 				{
 					NetworkID:  "networkID",
@@ -72,8 +73,7 @@ func TestPollRemoveEvent(t *testing.T) {
 	matchEvent := newMatchEvent(
 		"localhost", mockAllocator(), dockerContainers, contaienrInfos)
 	pollers := pollers{
-		LoggerFactory: utils.ObjectLogger{ObjectName: "vessel/pollers"},
-		pollers:       make(map[string]map[string]endpointUpdatePoller),
+		pollers: make(map[string]map[string]endpointUpdatePoller),
 	}
 	pollers.newPoller(endpointUpdatePoller{
 		networkID:  "networkID",
@@ -176,22 +176,13 @@ func TestAgent(t *testing.T) {
 
 	allocator := mockAllocator()
 
-	agent := networkAgentImpl{
-		LoggerFactory: utils.ObjectLogger{
-			Log:        utils.NewTestLogger(t),
-			ObjectName: "networkAgentImpl",
-		},
+	agent := networkAgent{
 		hostname:        "localhost",
 		dockerClient:    &dockerClient,
 		containerVessel: &containerVessel,
 		pollers:         newPollers(),
 		allocator:       allocator,
-		notifier: notifier{
-			LoggerFactory: utils.ObjectLogger{
-				Log:        utils.NewTestLogger(t),
-				ObjectName: "notifier",
-			},
-		},
+		notifier:        notifier{},
 		pollInterval:    time.Duration(30) * time.Second,
 		minPollInterval: time.Duration(1) * time.Second,
 		pollTimeout:     time.Duration(30) * time.Second,
