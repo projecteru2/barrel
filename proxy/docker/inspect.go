@@ -143,7 +143,7 @@ func (handler containerInspectHandler) Handle(ctx proxy.HandleContext, response 
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		if r, e := handler.injectNetworkforCNI(resp); e != nil {
+		if r, e := handler.injectNetworkforCNI(resp); e != nil { // nolint
 			logger.Errorf("failed to inject cni network info %+v", err)
 		} else {
 			resp = r

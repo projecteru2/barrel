@@ -10,6 +10,7 @@ import (
 
 var ipv4Pattern = regexp.MustCompile(`\d+\.\d+\.\d+\.\d+`)
 
+// ProbeIPv4 investigate eth0 inside a netns
 func ProbeIPv4(netns string) (ip string, err error) {
 	args := []string{"ip", "-4", "a", "sh", "eth0"}
 	var out []byte
