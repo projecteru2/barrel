@@ -18,6 +18,7 @@ func NewHandler(dockerDaemonSocket string, dialTimeout time.Duration, cniBase *s
 		Handlers: []proxy.RequestHandler{
 			newContainerCreateHandler(client, vess),
 			newContainerDeleteHandler(client, vess, inspectAgent, cniBase),
+			newContainerInspectHandler(client, vess),
 			newContainerPruneHandle(client, vess),
 			newNetworkConnectHandler(client, vess, inspectAgent),
 			newNetworkDisconnectHandler(client, vess, inspectAgent),

@@ -79,7 +79,7 @@ func (h *Base) CreateNetEndpoint(containerMeta *cni.ContainerMeta) (err error) {
 
 // DeleteDanglingNetwork .
 func (h *Base) DeleteDanglingNetwork(nep *cni.NetEndpoint) (err error) {
-	if err = h.withFlock(nep.IPv4, func() (err error) {
+	return h.withFlock(nep.IPv4, func() (err error) {
 		count, err := h.store.GetNetEndpointRefcount(nep)
 		if err != nil {
 			return
@@ -89,14 +89,15 @@ func (h *Base) DeleteDanglingNetwork(nep *cni.NetEndpoint) (err error) {
 		}
 
 		log.Infof("refcount back to zero, cleanup: %+v", nep)
-		return h.store.DeleteNetEndpoint(nep)
-	}); err != nil {
-		return
-	}
-	cmd := exec.Command(os.Args[0], "cni", "--config", h.conf.Filename, "--command", "del") // nolint
-	cmd.Args[0] = "barrel-cni"
-	cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"id":"%s"}`, nep.Owner))
-	return errors.WithStack(cmd.Run())
+		if err = h.store.DeleteNetEndpoint(nep); err != nil {
+			return errors.WithStack(err)
+		}
+
+		cmd := exec.Command(os.Args[0], "cni", "--config", h.conf.Filename, "--command", "del") // nolint
+		cmd.Args[0] = "barrel-cni"
+		cmd.Stdin = strings.NewReader(fmt.Sprintf(`{"id":"%s"}`, nep.Owner))
+		return errors.WithStack(cmd.Run())
+	})
 }
 
 // RemoveNetwork will be exposed to docker proxy in delete phase
