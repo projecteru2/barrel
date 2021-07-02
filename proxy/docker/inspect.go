@@ -182,7 +182,11 @@ func (handler containerInspectHandler) injectNetworkforCNI(resp *http.Response) 
 			return resp, nil
 		}
 		resp.Body = ioutil.NopCloser(bytes.NewReader(bs))
+		return resp, nil
 	}
+
+	// no cni container
+	resp.Body = ioutil.NopCloser(bytes.NewReader(body))
 	return resp, nil
 }
 
