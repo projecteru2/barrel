@@ -68,9 +68,12 @@ func run(c *cli.Context) (err error) {
 	if err != nil {
 		return
 	}
-	cniConf, err := config.LoadConfig(c.String("cni-config"))
-	if err != nil {
-		return
+	cniConf := config.Config{}
+	if c.Bool("enable-cni") {
+		cniConf, err = config.LoadConfig(c.String("cni-config"))
+		if err != nil {
+			return
+		}
 	}
 
 	barrel := app.Application{
@@ -188,6 +191,12 @@ func main() {
 					Value:   false,
 					Usage:   "enable cnm agent",
 					EnvVars: []string{"BARREL_ENABLE_CNM_AGENT"},
+				},
+				&cli.BoolFlag{
+					Name:    "enable-cni",
+					Value:   false,
+					Usage:   "enable cni network",
+					EnvVars: []string{"BARREL_ENABLE_CNI"},
 				},
 				&cli.StringFlag{
 					Name:    "cni-config",
