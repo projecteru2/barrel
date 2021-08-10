@@ -4,7 +4,7 @@ REPO_PATH := github.com/projecteru2/barrel
 REVISION := $(shell git rev-parse HEAD || unknown)
 BUILTAT := $(shell date +%Y-%m-%dT%H:%M:%S)
 BUILD_PATH := target
-VERSION := $(shell git describe --tags $(shell git rev-list --tags --max-count=1))
+VERSION := $(shell git tag --contains $(shell git rev-list --tags --max-count=1) | sed '/-/!{s/$/_/}' | sort -V -r | sed 's/_$//' | head -1)
 GO_LDFLAGS ?= -s -X $(REPO_PATH)/versioninfo.REVISION=$(REVISION) \
 			  -X $(REPO_PATH)/versioninfo.BUILTAT=$(BUILTAT) \
 			  -X $(REPO_PATH)/versioninfo.VERSION=$(VERSION)
