@@ -16,7 +16,7 @@ jobs:
 
       - name: Set up environment variables
         run: |
-          echo "VERSION=$(git describe --tags $(git rev-list --tags --max-count=1))" >> $GITHUB_ENV
+          echo "VERSION=$(git tag --contains $(git rev-list --tags --max-count=1) | sed '/-/!{s/$/_/}' | sort -V -r | sed 's/_$//' | head -1)" >> $GITHUB_ENV
 
       - name: Set up Go
         uses: actions/setup-go@v2
