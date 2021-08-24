@@ -72,7 +72,7 @@ func writeErrorResponse(res http.ResponseWriter, logger utils.Logger, err error,
 	if err := utils.WriteBadGateWayResponse(
 		res,
 		utils.HTTPSimpleMessageResponseBody{
-			Message: label + " error",
+			Message: label + " error, cause: " + err.Error(),
 		},
 	); err != nil {
 		logger.Errorf("write %s error response failed %v", label, err)
