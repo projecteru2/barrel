@@ -24,6 +24,66 @@ func Initialize(bufSize int) {
 	debug = log.GetLevel() == log.DebugLevel
 }
 
+// IsChunkedEncoding .
+func IsChunkedEncoding(src *http.Response) bool {
+	for _, value := range src.TransferEncoding {
+		if lower := strings.ToLower(strings.Trim(value, " ")); lower == "chunked" {
+			return true
+		}
+	}
+	return false
+}
+
+// ForwardChunked .
+func ForwardChunked(response http.ResponseWriter, resp *http.Response) {
+	log.Info("[ForwardChunked] Will forward chunked response")
+	initResponseHeader(response, resp.StatusCode, resp.Header)
+
+	buffer := make([]byte, 256)
+	for {
+		cnt, err := resp.Body.Read(buffer)
+		readed := buffer[:cnt]
+
+		log.Infof("%d bytes readed", cnt)
+
+		if _, err := response.Write(readed); err != nil {
+			log.WithError(err).Error("[ForwardChunked] server response write error")
+			return
+		}
+		if flusher, ok := response.(http.Flusher); ok {
+			flusher.Flush()
+		} else {
+			log.Warn("[ForwardChunked] server response is not http flusher")
+		}
+
+		if err == io.EOF {
+			log.Info("[ForwardChunked] client response end")
+			return
+		}
+
+		if err != nil {
+			log.WithError(err).Error("[ForwardChunked] copy io error")
+			return
+		}
+	}
+}
+
+func initResponseHeader(response http.ResponseWriter, statusCode int, header http.Header) {
+	PrintHeaders("ServerResponse", header)
+	responseHeader := response.Header()
+	for key, values := range header {
+		for _, value := range values {
+			responseHeader.Add(key, value)
+		}
+	}
+	response.WriteHeader(statusCode)
+	if flusher, ok := response.(http.Flusher); ok {
+		flusher.Flush()
+	} else {
+		log.Error("[WriteToServerResponse] Can't make flush to http.flusher")
+	}
+}
+
 // Forward .
 func Forward(src *http.Response, dst http.ResponseWriter) error {
 	copyHeader(src, dst)
