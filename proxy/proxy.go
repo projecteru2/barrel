@@ -66,6 +66,11 @@ func (ph HTTPProxyHandler) proxy(response http.ResponseWriter, request *http.Req
 		return
 	}
 	if resp.StatusCode != http.StatusSwitchingProtocols {
+		if request.Method == http.MethodGet && utils.IsChunkedEncoding(resp) {
+			log.Debug("[dispatch] Forward chunked response")
+			utils.ForwardChunked(response, resp)
+			return
+		}
 		log.Debug("[dispatch] Forward http response")
 		if err := utils.Forward(resp, response); err != nil {
 			log.Errorf("[dispatch] forward docker socket response failed %v", err)
