@@ -39,9 +39,16 @@ type UpdateCodec interface {
 	Retry() bool
 }
 
+// MultiGetCodec .
+type MultiGetCodec interface {
+	Prefix() string
+	Decode(string, int64)
+}
+
 // Store .
 type Store interface {
 	Get(ctx context.Context, codec Codec) error
+	GetMulti(ctx context.Context, codec MultiGetCodec) error
 	Put(ctx context.Context, codec Codec) error
 	Delete(ctx context.Context, codec Codec) error
 	GetAndDelete(ctx context.Context, codec Codec) error

@@ -46,6 +46,17 @@ func (e *etcdStore) Get(ctx context.Context, codec store.Codec) error {
 	return codec.Decode(string(kv.Value))
 }
 
+func (e *etcdStore) GetMulti(ctx context.Context, codec store.MultiGetCodec) error {
+	resp, err := e.cli.Get(ctx, codec.Prefix())
+	if err != nil {
+		return err
+	}
+	for _, kv := range resp.Kvs {
+		codec.Decode(string(kv.Value), kv.Version)
+	}
+	return nil
+}
+
 // Put save a key value
 func (e *etcdStore) Put(ctx context.Context, codec store.Codec) error {
 	var (

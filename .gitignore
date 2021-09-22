@@ -4,6 +4,7 @@ dist
 cert/
 barrel
 eru-barrel
+eru-barrel-utils
 vendor/*
 .mypy_cache
 **/__pycache__

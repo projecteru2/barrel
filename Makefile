@@ -24,6 +24,7 @@ test:
 
 binary:
 	go build -ldflags "$(GO_LDFLAGS)" -a -tags "netgo osusergo" -installsuffix netgo -o eru-barrel
+	go build -ldflags "$(GO_LDFLAGS)" -a -tags "netgo osusergo" -installsuffix netgo -o eru-barrel-utils cmd/ctr/ctr.go
 
 cloc:
 	cloc --exclude-dir=vendor,3rdmocks,mocks,tools --not-match-f=test .
