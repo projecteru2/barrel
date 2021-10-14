@@ -82,3 +82,26 @@ func marshal(src interface{}) (string, error) {
 	bytes, err := json.Marshal(src)
 	return string(bytes), err
 }
+
+// IPInfoMultiGetCodec .
+type IPInfoMultiGetCodec struct {
+	PrefixKey string
+	Codecs    []*IPInfoCodec
+	Errors    []error
+}
+
+// Prefix .
+func (codec *IPInfoMultiGetCodec) Prefix() string {
+	return codec.PrefixKey
+}
+
+// Decode .
+func (codec *IPInfoMultiGetCodec) Decode(val string, ver int64) {
+	c := &IPInfoCodec{}
+	if err := c.Decode(val); err != nil {
+		codec.Errors = append(codec.Errors, err)
+		return
+	}
+	c.SetVersion(ver)
+	codec.Codecs = append(codec.Codecs, c)
+}

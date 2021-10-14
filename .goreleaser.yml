@@ -3,7 +3,22 @@ before:
     - go mod download
 
 builds:
-  - binary: eru-barrel
+  - id: "eru-barrel" 
+    binary: eru-barrel
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/projecteru2/barrel/versioninfo.REVISION={{.Commit}}
+      - -X github.com/projecteru2/barrel/versioninfo.VERSION={{.Env.VERSION}}
+      - -X github.com/projecteru2/barrel/versioninfo.BUILTAT={{.Date}}
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - id: "eru-barrel-utils"
+    main: ./cmd/ctr/ctr.go
+    binary: eru-barrel-utils
     env:
       - CGO_ENABLED=0
     ldflags:
