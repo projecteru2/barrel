@@ -60,12 +60,15 @@ func (c *Ctr) ListFixedIP(ctx context.Context, poolname string) ([]*types.IPInfo
 }
 
 // UnassignFixedIP .
-func (c *Ctr) UnassignFixedIP(ctx context.Context, ip types.IP) error {
+func (c *Ctr) UnassignFixedIP(ctx context.Context, ip types.IP, unalloc bool) error {
+	if unalloc {
+		return c.ipAllocator.UnallocFixedIP(ctx, ip)
+	}
 	if err := c.ipAllocator.UnassignFixedIP(
 		ctx,
 		ip,
 	); err != nil {
-		if err == types.ErrFixedIPNotAllocated {
+		if err == types.ErrFixedIPNotAllocated && unalloc {
 			return c.ipAllocator.UnallocIP(ctx, ip)
 		}
 		return err
@@ -113,7 +116,7 @@ func (c *Ctr) ListBlocks(ctx context.Context, opt ListBlockOpt) (result []*model
 
 	// Iterate through and extract the block CIDRs.
 	for _, o := range datastoreObjs.KVPairs {
-		k := o.Key.(model.BlockAffinityKey)
+		k := o.Key.(model.BlockKey)
 
 		if ipPool == nil {
 			blocks = append(blocks, k.CIDR)

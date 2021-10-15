@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/juju/errors"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	cli "github.com/urfave/cli/v2"
 
 	"github.com/projecteru2/barrel/cmd/ctr/commands"
 	ctrtypes "github.com/projecteru2/barrel/cmd/ctr/types"
-	"github.com/projecteru2/barrel/types"
 	"github.com/projecteru2/barrel/versioninfo"
 )
+
+const envETCDEndpoints = "ETCD_ENDPOINTS"
 
 func main() {
 	cli.VersionPrinter = func(c *cli.Context) {
@@ -20,25 +21,21 @@ func main() {
 	}
 
 	flags := ctrtypes.Flags{}
-	var configPath string
+	var etcdEndpoints string
 
 	app := &cli.App{
 		Name:    "Barrel Ctr",
 		Version: versioninfo.VERSION,
 		Before: func(c *cli.Context) error {
-			viper.AddConfigPath(configPath)
-			viper.SetConfigName("ETCD_ENDPOINTS")
-			viper.AutomaticEnv()
-
-			if err := viper.ReadInConfig(); err != nil {
-				return err
+			if os.Getenv(envETCDEndpoints) != "" {
+				return nil
 			}
 
-			config := types.Config{}
-			if err := viper.Unmarshal(&config); err != nil {
-				return err
+			if etcdEndpoints != "" {
+				return os.Setenv("ETCD_ENDPOINTS", etcdEndpoints)
 			}
-			return os.Setenv("ETCD_ENDPOINTS", config.ETCDEndpoints)
+
+			return errors.New("must specific etcd endpoints from options or environment variable")
 		},
 		Commands: []*cli.Command{
 			commands.AssignCommands(&flags),
@@ -49,10 +46,9 @@ func main() {
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:        "config",
-				Usage:       "environment config file for barrel",
-				Value:       "/etc/eru/barrel.conf",
-				Destination: &configPath,
+				Name:        "etcd-endpoints",
+				Usage:       "etcd endpoints",
+				Destination: &etcdEndpoints,
 			},
 			&cli.StringFlag{
 				Name:        "docker-host",

@@ -14,6 +14,7 @@ func ReleaseCommands(flags *ctrtypes.Flags) *cli.Command {
 		Usage: "release network resources",
 		Subcommands: []*cli.Command{
 			release.BlockCommand(flags),
+			release.BlocksCommand(flags),
 			release.IPCommand(flags),
 			release.WEPCommand(flags),
 		},
