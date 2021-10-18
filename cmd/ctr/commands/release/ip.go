@@ -12,10 +12,11 @@ import (
 // DelIP .
 type DelIP struct {
 	*ctrtypes.Flags
-	c        ctr.Ctr
-	poolFlag string
-	ipFlag   string
-	hostFlag string
+	c           ctr.Ctr
+	poolFlag    string
+	ipFlag      string
+	hostFlag    string
+	unallocFlag bool
 }
 
 // IPCommand .
@@ -41,6 +42,11 @@ func IPCommand(flags *ctrtypes.Flags) *cli.Command {
 				Usage:       "hostname",
 				Destination: &delIP.hostFlag,
 			},
+			&cli.BoolFlag{
+				Name:        "unalloc",
+				Usage:       "unalloc fixed ip",
+				Destination: &delIP.unallocFlag,
+			},
 		},
 	}
 }
@@ -62,7 +68,7 @@ func (d *DelIP) run(ctx *cli.Context) error {
 	if err := d.c.UnassignFixedIP(ctx.Context, types.IP{
 		PoolID:  d.poolFlag,
 		Address: d.ipFlag,
-	}); err != nil {
+	}, d.unallocFlag); err != nil {
 		ctr.Fprintln("unassign fixed ip success")
 	}
 	return nil

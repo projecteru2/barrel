@@ -2,8 +2,6 @@ package inspect
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
 
 	"github.com/juju/errors"
 	cli "github.com/urfave/cli/v2"
@@ -54,8 +52,8 @@ func (g *IPInspect) init(ctx *cli.Context) error {
 
 func (g *IPInspect) run(ctx *cli.Context) error {
 	ip, exists, err := g.c.InspectFixedIP(ctx.Context, types.IP{
-		PoolID:  ctx.String("poolname"),
-		Address: ctx.String("ip"),
+		PoolID:  g.poolFlag,
+		Address: g.ipFlag,
 	})
 	if err != nil {
 		return err
@@ -67,6 +65,5 @@ func (g *IPInspect) run(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprint(os.Stdout, content)
-	return err
+	return ctr.Fprintln(string(content))
 }

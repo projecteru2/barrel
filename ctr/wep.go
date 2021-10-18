@@ -69,7 +69,7 @@ func (c *Ctr) RecycleWorkloadEndpoint(ctx context.Context, wepName string, pooln
 		} else if err := c.UnassignFixedIP(ctx, types.IP{
 			PoolID:  poolname,
 			Address: ip.String(),
-		}); err != nil {
+		}, false); err != nil {
 			log.WithError(err).Errorf("Failed to recycle ip %s", ipCidr)
 		}
 	}
