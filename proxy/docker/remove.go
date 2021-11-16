@@ -17,7 +17,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	labelVolumeAutoResource = "volume-auto-res"
+)
+
 var regexDeleteContainer = regexp.MustCompile(`/(.*?)/containers/([a-zA-Z0-9][a-zA-Z0-9_.-]*)(\?.*)?`)
+
+const (
+	// ResourceShared .
+	ResourceShared string = "shared"
+	// ResourceUnique .
+	ResourceUnique string = "unique"
+	// ResourceBorrowed .
+	ResourceBorrowed string = "borrowed"
+)
 
 type containerDeleteHandler struct {
 	utils.LoggerFactory
@@ -38,9 +51,9 @@ func newContainerDeleteHandler(client barrelHttp.Client, vess vessel.Helper, ins
 }
 
 type containerDeleteRequest struct {
-	version        string
-	identifier     string
-	removeVolumens bool
+	version       string
+	identifier    string
+	removeVolumes bool
 }
 
 // Handle .
@@ -90,8 +103,9 @@ func (handler containerDeleteHandler) Handle(ctx proxy.HandleContext, response h
 	}
 	defer resp.Body.Close()
 
+	removeVolumes := containerDeleteRequest.removeVolumes && shouldRemoveVolumes(containerInfo.Config.Labels, true)
 	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotFound {
-		go handler.releaseResources(containerInfo, containerDeleteRequest.removeVolumens)
+		go handler.releaseResources(containerInfo, removeVolumes)
 	}
 
 	if err = utils.Forward(resp, response); err != nil {
@@ -165,7 +179,7 @@ func (handler containerDeleteHandler) match(request *http.Request) (containerDel
 		if len(subMatches) > 2 {
 			req.version = subMatches[1]
 			req.identifier = subMatches[2]
-			req.removeVolumens = parseBoolFromQuery(request, "v", false)
+			req.removeVolumes = parseBoolFromQuery(request, "v", false)
 
 			handler.Logger("match").Debugf("docker api version = %s", req.version)
 			return req, true
@@ -176,9 +190,32 @@ func (handler containerDeleteHandler) match(request *http.Request) (containerDel
 
 func parseBoolFromQuery(request *http.Request, key string, defVal bool) bool {
 	if values, ok := request.URL.Query()[key]; ok {
-		if removeVolumens, err := strconv.ParseBool(values[0]); err == nil {
-			return removeVolumens
+		if removeVolumes, err := strconv.ParseBool(values[0]); err == nil {
+			return removeVolumes
 		}
 	}
 	return defVal
+}
+
+func shouldRemoveVolumes(labels map[string]string, defVal bool) bool {
+	if labels == nil {
+		return defVal
+	}
+
+	val, ok := labels[labelVolumeAutoResource]
+	if !ok {
+		return defVal
+	}
+
+	switch val {
+	case ResourceShared:
+		// will introduce a reference counting later
+		return false
+	case ResourceUnique:
+		return true
+	case ResourceBorrowed:
+		return false
+	default:
+		return defVal
+	}
 }
