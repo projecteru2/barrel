@@ -15,36 +15,46 @@ const (
 	retryMaxCount = 3
 )
 
-// FixedIPAllocator .
-type FixedIPAllocator interface {
-	CalicoIPAllocator
-	AllocFixedIP(context.Context, types.IP) error
-	UnallocFixedIP(context.Context, types.IP) error
+// FixedIPPoolManager .
+type FixedIPPoolManager interface {
+	BorrowFixedIP(context.Context, types.IP, types.Container) error
+	ReturnFixedIP(context.Context, types.IP, types.Container) error
 	// Only assign when fixed ip is allocated
 	AssignFixedIP(context.Context, types.IP) error
 	UnassignFixedIP(context.Context, types.IP) error
-	AllocFixedIPFromPools(ctx context.Context, pools []types.Pool) (types.IPAddress, error)
-	BorrowFixedIP(context.Context, types.IP, types.Container) error
-	ReturnFixedIP(context.Context, types.IP, types.Container) error
+	UnallocFixedIP(context.Context, types.IP, bool) error
 }
 
-// fixedIPAllocator .
-type fixedIPAllocator struct {
+// FixedIPPool .
+type FixedIPPool interface {
+	CalicoIPPool
+	FixedIPPoolManager
+}
+
+// FixedIPAllocator .
+type FixedIPAllocator interface {
 	CalicoIPAllocator
-	store store.Store
+	FixedIPPoolManager
+	AllocFixedIP(context.Context, types.IP) error
+	AllocFixedIPFromPools(ctx context.Context, pools []types.Pool) (types.IPAddress, error)
 }
 
-// NewFixedIPAllocator .
-func NewFixedIPAllocator(allocator CalicoIPAllocator, stor store.Store) FixedIPAllocator {
-	return fixedIPAllocator{
-		CalicoIPAllocator: allocator,
-		store:             stor,
+type fixedIPPool struct {
+	CalicoIPPool
+	store.Store
+}
+
+// NewFixedIPPool .
+func NewFixedIPPool(pool CalicoIPPool, stor store.Store) FixedIPPool {
+	return fixedIPPool{
+		CalicoIPPool: pool,
+		Store:        stor,
 	}
 }
 
 // AssignFixedIP .
-func (alloc fixedIPAllocator) AssignFixedIP(ctx context.Context, ip types.IP) error {
-	logger := alloc.logger("AssignFixedIP")
+func (pool fixedIPPool) AssignFixedIP(ctx context.Context, ip types.IP) error {
+	logger := pool.logger("AssignFixedIP")
 	ctx = utils.WithEntry(ctx, logger)
 
 	// First check whether the ip is assigned as fixed ip
@@ -54,12 +64,8 @@ func (alloc fixedIPAllocator) AssignFixedIP(ctx context.Context, ip types.IP) er
 		err         error
 	)
 
-	if ipInfoCodec, err = alloc.getFixedIP(ctx, ip, false); err != nil {
+	if ipInfoCodec, err = pool.getFixedIP(ctx, ip, nil); err != nil {
 		return err
-	}
-	if ipInfoCodec == nil {
-		logger.WithField("fixed-ip", ip).Error(`Fixed-ip is not allocated`)
-		return types.ErrFixedIPNotAllocated
 	}
 	if ipInfoCodec.IPInfo.Status.Match(types.IPStatusInUse) {
 		logger.WithField("fixed-ip", ip).Error(`Fixed-ip in use`)
@@ -67,20 +73,19 @@ func (alloc fixedIPAllocator) AssignFixedIP(ctx context.Context, ip types.IP) er
 	}
 
 	ipInfoCodec.IPInfo.Status.Mark(types.IPStatusInUse)
-	if ok, err = alloc.store.UpdateElseGet(ctx, ipInfoCodec); err != nil {
+	if ok, err = pool.UpdateElseGet(ctx, ipInfoCodec); err != nil {
 		logger.WithError(err).Error("Update IPInfo error")
 		return err
 	} else if !ok {
 		// update failed, the ip is modified by another container
 		return types.ErrIPInUse
 	}
-
 	return nil
 }
 
 // UnassignFixedIP .
-func (alloc fixedIPAllocator) UnassignFixedIP(ctx context.Context, ip types.IP) error {
-	logger := alloc.logger(
+func (pool fixedIPPool) UnassignFixedIP(ctx context.Context, ip types.IP) error {
+	logger := pool.logger(
 		"UnassignFixedIP",
 	).WithField(
 		"PoolID", ip.PoolID,
@@ -96,12 +101,8 @@ func (alloc fixedIPAllocator) UnassignFixedIP(ctx context.Context, ip types.IP) 
 		err         error
 	)
 
-	if ipInfoCodec, err = alloc.getFixedIP(ctx, ip, false); err != nil {
+	if ipInfoCodec, err = pool.getFixedIP(ctx, ip, nil); err != nil {
 		return err
-	}
-	if ipInfoCodec == nil {
-		logger.Error("IP is not allocated")
-		return types.ErrFixedIPNotAllocated
 	}
 
 	if !ipInfoCodec.IPInfo.Status.Match(types.IPStatusInUse) {
@@ -110,7 +111,7 @@ func (alloc fixedIPAllocator) UnassignFixedIP(ctx context.Context, ip types.IP) 
 	}
 
 	ipInfoCodec.IPInfo.Status.Unmark(types.IPStatusInUse)
-	if ok, err = alloc.store.UpdateElseGet(ctx, ipInfoCodec); err != nil {
+	if ok, err = pool.UpdateElseGet(ctx, ipInfoCodec); err != nil {
 		logger.WithError(err).Errorf("Update IPInfo error")
 		return err
 	} else if !ok {
@@ -121,15 +122,15 @@ func (alloc fixedIPAllocator) UnassignFixedIP(ctx context.Context, ip types.IP) 
 }
 
 // BorrowFixedIP .
-func (alloc fixedIPAllocator) BorrowFixedIP(ctx context.Context, ip types.IP, container types.Container) error {
-	logger := alloc.logger("BorrowFixedIP")
+func (pool fixedIPPool) BorrowFixedIP(ctx context.Context, ip types.IP, container types.Container) error {
+	logger := pool.logger("BorrowFixedIP")
 	ctx = utils.WithEntry(ctx, logger)
 
 	logger.WithField("ip", ip).WithField("container", container).Info("BorrowFixedIP")
 
 	cnt := 0
 	for cnt < retryMaxCount {
-		codec, err := alloc.getFixedIP(ctx, ip, false)
+		codec, err := pool.getFixedIP(ctx, ip, nil)
 		if err != nil {
 			return err
 		}
@@ -139,7 +140,7 @@ func (alloc fixedIPAllocator) BorrowFixedIP(ctx context.Context, ip types.IP, co
 			codec.IPInfo.Attrs = attrs
 		}
 		attrs.Borrowers = append(attrs.Borrowers, container)
-		if ok, err := alloc.store.UpdateElseGet(ctx, codec); err != nil {
+		if ok, err := pool.UpdateElseGet(ctx, codec); err != nil {
 			return err
 		} else if ok {
 			return nil
@@ -150,13 +151,13 @@ func (alloc fixedIPAllocator) BorrowFixedIP(ctx context.Context, ip types.IP, co
 }
 
 // ReturnFixedIP .
-func (alloc fixedIPAllocator) ReturnFixedIP(ctx context.Context, ip types.IP, container types.Container) error {
-	logger := alloc.logger("ReturnFixedIP")
+func (pool fixedIPPool) ReturnFixedIP(ctx context.Context, ip types.IP, container types.Container) error {
+	logger := pool.logger("ReturnFixedIP")
 	ctx = utils.WithEntry(ctx, logger)
 
 	cnt := 0
 	for cnt < retryMaxCount {
-		codec, err := alloc.getFixedIP(ctx, ip, false)
+		codec, err := pool.getFixedIP(ctx, ip, nil)
 		if err != nil {
 			return err
 		}
@@ -172,7 +173,7 @@ func (alloc fixedIPAllocator) ReturnFixedIP(ctx context.Context, ip types.IP, co
 			}
 		}
 		attrs.Borrowers = borrowers
-		if ok, err := alloc.store.UpdateElseGet(ctx, codec); err != nil {
+		if ok, err := pool.UpdateElseGet(ctx, codec); err != nil {
 			return err
 		} else if ok {
 			return nil
@@ -182,34 +183,9 @@ func (alloc fixedIPAllocator) ReturnFixedIP(ctx context.Context, ip types.IP, co
 	return types.ErrMaxRetryCountExceeded
 }
 
-// AllocFixedIP .
-func (alloc fixedIPAllocator) AllocFixedIP(ctx context.Context, ip types.IP) error {
-	ctx = alloc.context(ctx, "AllocFixedIP")
-
-	// First check whether the ip is assigned as fixed ip
-	var (
-		ipInfoCodec *codecs.IPInfoCodec
-		err         error
-	)
-	if ipInfoCodec, err = alloc.getFixedIP(ctx, ip, true); err != nil {
-		return err
-	}
-
-	// ipInfoCodec will not be nil when we call getFixedIP by alloIfAbsent=true parameter
-	// still we run a check not to make programe panic
-	if ipInfoCodec == nil {
-		return types.ErrCriticalError
-	}
-
-	if ipInfoCodec.IPInfo.Status.Match(types.IPStatusInUse) {
-		return types.ErrIPInUse
-	}
-	return nil
-}
-
 // UnallocFixedIP .
-func (alloc fixedIPAllocator) UnallocFixedIP(ctx context.Context, ip types.IP) error {
-	logger := alloc.logger(
+func (pool fixedIPPool) UnallocFixedIP(ctx context.Context, ip types.IP, force bool) error {
+	logger := pool.logger(
 		"UnallocFixedIP",
 	).WithField(
 		"PoolID", ip.PoolID,
@@ -234,13 +210,8 @@ func (alloc fixedIPAllocator) UnallocFixedIP(ctx context.Context, ip types.IP) e
 	// 	return types.ErrFixedIPNotAllocated
 	// }
 
-	if ipInfoCodec, err = alloc.getFixedIP(ctx, ip, false); err != nil {
+	if ipInfoCodec, err = pool.getFixedIP(ctx, ip, nil); err != nil {
 		return err
-	}
-
-	if ipInfoCodec == nil {
-		logger.Warnf("IP is not allocated")
-		return types.ErrFixedIPNotAllocated
 	}
 
 	ipInfo := ipInfoCodec.IPInfo
@@ -248,32 +219,111 @@ func (alloc fixedIPAllocator) UnallocFixedIP(ctx context.Context, ip types.IP) e
 		return types.ErrIPInUse
 	}
 
-	if ipInfo.Attrs != nil && len(ipInfo.Attrs.Borrowers) > 0 {
+	// if force remove, we will not check borrowers
+	if !force && ipInfo.Attrs != nil && len(ipInfo.Attrs.Borrowers) > 0 {
 		logger.Info("IP still has borrower")
 		return types.ErrFixedIPHasBorrower
 	}
 
 	// Lock the ip first
 	ipInfo.Status.Mark(types.IPStatusInUse, types.IPStatusRetired)
-	if ok, err = alloc.store.UpdateElseGet(ctx, ipInfoCodec); err != nil {
+	if ok, err = pool.UpdateElseGet(ctx, ipInfoCodec); err != nil {
 		logger.WithError(err).Errorf("Lock IPInfo failed")
 	} else if !ok {
 		return types.ErrIPInUse
 	}
 
 	// Now we remove the ipInfo
-	if err = alloc.store.Delete(ctx, ipInfoCodec); err != nil {
+	if err = pool.Delete(ctx, ipInfoCodec); err != nil {
 		logger.WithError(err).Error("Delete IPInfo failed")
 		// The
 		return err
 	}
 
 	// Now we free the address
-	if err = alloc.UnallocIP(ctx, ip); err != nil {
+	if err = pool.UnallocIP(ctx, ip); err != nil {
 		logger.WithError(err).Error("Unalloc IP failed")
 		return err
 	}
 
+	return nil
+}
+
+func (pool fixedIPPool) logger(method string) *log.Entry {
+	return log.WithField("Receiver", "fixedIPPool").WithField("Method", method)
+}
+
+func (pool fixedIPPool) getFixedIP(
+	ctx context.Context,
+	ip types.IP,
+	allocateFixedIP func(context.Context, types.IP, *codecs.IPInfoCodec) error,
+) (*codecs.IPInfoCodec, error) {
+	logger := utils.LogEntry(ctx)
+	// First check whether the ip is assigned as fixed ip
+	var (
+		ipInfo      = types.IPInfo{Address: ip.Address, PoolID: ip.PoolID}
+		ipInfoCodec = &codecs.IPInfoCodec{IPInfo: &ipInfo}
+	)
+	// nolint:nestif
+	if err := pool.Get(ctx, ipInfoCodec); err != nil {
+		if store.IsNotExists(err) {
+			if allocateFixedIP == nil {
+				logger.Error("IP is not allocated")
+				return nil, types.ErrFixedIPNotAllocated
+			}
+			if err := allocateFixedIP(ctx, ip, ipInfoCodec); err != nil {
+				return nil, err
+			}
+			return ipInfoCodec, nil
+		}
+		logger.WithError(err).Error("Get fixed-ip info error")
+		return nil, err
+	}
+	return ipInfoCodec, nil
+}
+
+// func (pool fixedIPPool) context(ctx context.Context, method string) context.Context {
+// 	return utils.WithEntry(ctx, pool.logger(method))
+// }
+
+type fixedIPAllocator struct {
+	fixedIPPool
+	CalicoIPAllocator
+}
+
+// NewFixedIPAllocator .
+func NewFixedIPAllocator(allocator CalicoIPAllocator, stor store.Store) FixedIPAllocator {
+	return fixedIPAllocator{
+		CalicoIPAllocator: allocator,
+		fixedIPPool: fixedIPPool{
+			CalicoIPPool: allocator,
+			Store:        stor,
+		},
+	}
+}
+
+// AllocFixedIP .
+func (alloc fixedIPAllocator) AllocFixedIP(ctx context.Context, ip types.IP) error {
+	ctx = alloc.context(ctx, "AllocFixedIP")
+
+	// First check whether the ip is assigned as fixed ip
+	var (
+		ipInfoCodec *codecs.IPInfoCodec
+		err         error
+	)
+	if ipInfoCodec, err = alloc.getFixedIP(ctx, ip, alloc.createFixedIP); err != nil {
+		return err
+	}
+
+	// ipInfoCodec will not be nil when we call getFixedIP by alloIfAbsent=true parameter
+	// still we run a check not to make programe panic
+	if ipInfoCodec == nil {
+		return types.ErrCriticalError
+	}
+
+	if ipInfoCodec.IPInfo.Status.Match(types.IPStatusInUse) {
+		return types.ErrIPInUse
+	}
 	return nil
 }
 
@@ -291,7 +341,7 @@ func (alloc fixedIPAllocator) AllocFixedIPFromPools(ctx context.Context, pools [
 		ipInfo      = types.IPInfo{Address: ip.Address, PoolID: ip.PoolID}
 		ipInfoCodec = &codecs.IPInfoCodec{IPInfo: &ipInfo}
 	)
-	if err = alloc.store.Put(ctx, ipInfoCodec); err != nil {
+	if err = alloc.Put(ctx, ipInfoCodec); err != nil {
 		if err := alloc.UnallocIP(ctx, ip.IP); err != nil {
 			logger.WithError(err).Errorf("UnallocIP error")
 		}
@@ -300,36 +350,17 @@ func (alloc fixedIPAllocator) AllocFixedIPFromPools(ctx context.Context, pools [
 	return ip, nil
 }
 
-func (alloc fixedIPAllocator) getFixedIP(ctx context.Context, ip types.IP, alloIfAbsent bool) (*codecs.IPInfoCodec, error) {
+func (alloc fixedIPAllocator) createFixedIP(ctx context.Context, ip types.IP, codec *codecs.IPInfoCodec) error {
 	logger := utils.LogEntry(ctx)
-	// First check whether the ip is assigned as fixed ip
-	var (
-		ipInfo           = types.IPInfo{Address: ip.Address, PoolID: ip.PoolID}
-		ipInfoCodec      = &codecs.IPInfoCodec{IPInfo: &ipInfo}
-		fixedIPNotExists = false
-	)
-	if err := alloc.store.Get(ctx, ipInfoCodec); err != nil {
-		if !store.IsNotExists(err) {
-			logger.WithError(err).Error("Get fixed-ip info error")
-			return nil, err
-		}
-		fixedIPNotExists = true
+	if err := alloc.AllocIP(ctx, ip); err != nil {
+		logger.WithError(err).Error("Alloc IP error")
+		return err
 	}
-	if fixedIPNotExists {
-		if !alloIfAbsent {
-			return nil, nil
-		}
-
-		if err := alloc.AllocIP(ctx, ip); err != nil {
-			logger.WithError(err).Error("Alloc IP error")
-			return nil, err
-		}
-		if err := alloc.store.Put(ctx, ipInfoCodec); err != nil {
-			logger.WithError(err).Error("Create FixedIPInfo error")
-			return nil, err
-		}
+	if err := alloc.Put(ctx, codec); err != nil {
+		logger.WithError(err).Error("Create FixedIPInfo error")
+		return err
 	}
-	return ipInfoCodec, nil
+	return nil
 }
 
 func (alloc fixedIPAllocator) logger(method string) *log.Entry {

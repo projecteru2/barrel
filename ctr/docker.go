@@ -19,8 +19,8 @@ func (c *Ctr) ListNetworks(ctx context.Context) ([]types.NetworkResource, error)
 	return c.dockerCli.NetworkList(ctx, types.NetworkListOptions{})
 }
 
-// ListContainerByPool .
-func (c *Ctr) ListContainerByPool(ctx context.Context, poolname string) (map[string]types.EndpointResource, error) {
+// ListContainersByPool .
+func (c *Ctr) ListContainersByPool(ctx context.Context, poolname string) (map[string]types.EndpointResource, error) {
 	ipPool, err := c.calico.IPPools().Get(ctx, poolname, options.GetOptions{})
 	if err != nil {
 		return nil, err

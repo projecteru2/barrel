@@ -18,7 +18,7 @@ type DiagnoseIP struct {
 	*ctrtypes.Flags
 	c        ctr.Ctr
 	poolFlag string
-	ip       string
+	ipArg    string
 }
 
 // IPCommand .
@@ -28,12 +28,13 @@ func IPCommand(flags *ctrtypes.Flags) *cli.Command {
 	}
 
 	return &cli.Command{
-		Name:  "ip",
-		Usage: "diagnose ip problem",
+		Name:      "ip",
+		Usage:     "diagnose ip address problem",
+		ArgsUsage: "ADDRESSV4",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "pool",
-				Usage:       "pool",
+				Usage:       "use poolname to specific which pool the address belongs to",
 				Destination: &diagIP.poolFlag,
 				Required:    true,
 			},
@@ -44,8 +45,8 @@ func IPCommand(flags *ctrtypes.Flags) *cli.Command {
 }
 
 func (diag *DiagnoseIP) init(ctx *cli.Context) (err error) {
-	diag.ip = ctx.Args().First()
-	if diag.ip == "" {
+	diag.ipArg = ctx.Args().First()
+	if diag.ipArg == "" {
 		return errors.New("must provide ip address")
 	}
 	return ctr.InitCtr(&diag.c, func(init *ctr.Init) {
@@ -56,14 +57,14 @@ func (diag *DiagnoseIP) init(ctx *cli.Context) (err error) {
 }
 
 func (diag *DiagnoseIP) run(ctx *cli.Context) error {
-	cnetIP := cnet.ParseIP(diag.ip)
+	cnetIP := cnet.ParseIP(diag.ipArg)
 	if cnetIP == nil {
 		return errors.New("arg0 is not a valid ip address")
 	}
 
 	ipInfo, exists, err := diag.c.InspectFixedIP(ctx.Context, types.IP{
 		PoolID:  diag.poolFlag,
-		Address: diag.ip,
+		Address: diag.ipArg,
 	})
 	if err != nil {
 		return err
@@ -96,7 +97,7 @@ func (diag *DiagnoseIP) run(ctx *cli.Context) error {
 	wepAssigned := false
 	for _, wep := range weps {
 		for _, ipNet := range wep.Spec.IPNetworks {
-			if strings.HasPrefix(ipNet, diag.ip) {
+			if strings.HasPrefix(ipNet, diag.ipArg) {
 				wepAssigned = true
 				ctr.Fprintlnf("the ip is assigned to WorkloadEndpoint %s, namespace = %s",
 					wep.Name, wep.Namespace,
@@ -108,13 +109,13 @@ func (diag *DiagnoseIP) run(ctx *cli.Context) error {
 		ctr.Fprintlnf("the ip is not assigned to WorkloadEndpoint")
 	}
 
-	containers, err := diag.c.ListContainerByPool(ctx.Context, diag.poolFlag)
+	containers, err := diag.c.ListContainersByPool(ctx.Context, diag.poolFlag)
 	if err != nil {
 		return errors.Annotate(err, "list containers on subnet error")
 	}
 	occupied := false
 	for containerID, container := range containers {
-		if strings.HasPrefix(container.IPv4Address, diag.ip) {
+		if strings.HasPrefix(container.IPv4Address, diag.ipArg) {
 			occupied = true
 			ctr.Fprintlnf("the ip is occupied by container %s(id = %s), workloadendpointID = %s",
 				container.Name, containerID, container.EndpointID,

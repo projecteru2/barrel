@@ -16,8 +16,8 @@ type IPAssign struct {
 	*ctrtypes.Flags
 	c           ctr.Ctr
 	poolFlag    string
-	ipFlag      string
-	hostFlag    string
+	nodeFlag    string
+	ipArg       string
 	fixedIPFlag bool
 }
 
@@ -26,21 +26,23 @@ func IPCommand(flags *ctrtypes.Flags) *cli.Command {
 	assignIP := IPAssign{Flags: flags}
 
 	return &cli.Command{
-		Name:   "ip",
-		Usage:  "assign a ip",
-		Action: assignIP.run,
-		Before: assignIP.init,
+		Name:      "ip",
+		Usage:     "assign a ip",
+		ArgsUsage: "ADDRESSV4",
+		Action:    assignIP.run,
+		Before:    assignIP.init,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "pool",
-				Usage:       "pool",
+				Usage:       "use poolname to specific from which pool to allocate the ip address",
 				Required:    true,
 				Destination: &assignIP.poolFlag,
 			},
 			&cli.StringFlag{
-				Name:        "host",
-				Usage:       "hostname",
-				Destination: &assignIP.hostFlag,
+				Name:        "node",
+				Usage:       "use nodename to specific on which host to allocate the ip address",
+				Required:    true,
+				Destination: &assignIP.nodeFlag,
 			},
 			&cli.BoolFlag{
 				Name:        "fixed-ip",
@@ -52,15 +54,12 @@ func IPCommand(flags *ctrtypes.Flags) *cli.Command {
 }
 
 func (d *IPAssign) init(ctx *cli.Context) error {
-	if err := ctr.InitHost(&d.hostFlag); err != nil {
-		return err
-	}
-	d.ipFlag = ctx.Args().First()
-	if d.ipFlag == "" {
+	d.ipArg = ctx.Args().First()
+	if d.ipArg == "" {
 		return errors.New("must provide ip address")
 	}
 	return ctr.InitCtr(&d.c, func(init *ctr.Init) {
-		init.InitAllocator(d.DockerHostFlag, d.DockerVersionFlag, "")
+		init.InitAllocator(d.nodeFlag)
 	})
 }
 
@@ -76,11 +75,11 @@ func (d *IPAssign) assignIP(ctx context.Context) error {
 	if d.fixedIPFlag {
 		return d.c.AssignFixedIP(ctx, types.IP{
 			PoolID:  d.poolFlag,
-			Address: d.ipFlag,
+			Address: d.ipArg,
 		})
 	}
 	return d.c.AssignIP(ctx, types.IP{
 		PoolID:  d.poolFlag,
-		Address: d.ipFlag,
+		Address: d.ipArg,
 	})
 }

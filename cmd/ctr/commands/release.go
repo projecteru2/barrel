@@ -17,6 +17,7 @@ func ReleaseCommands(flags *ctrtypes.Flags) *cli.Command {
 			release.BlocksCommand(flags),
 			release.IPCommand(flags),
 			release.WEPCommand(flags),
+			// release.WEPSCommand(flags),
 		},
 	}
 }

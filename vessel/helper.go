@@ -64,7 +64,7 @@ func (helper Helper) ReleaseContainerAddressesByIPPools(ctx context.Context, con
 		}
 	}
 	for _, address := range releases {
-		if err := helper.FixedIPAllocator().UnallocFixedIP(ctx, address); err != nil {
+		if err := helper.FixedIPAllocator().UnallocFixedIP(ctx, address, false); err != nil {
 			logger.Errorf("release reserved address error, cause = %v", err)
 		}
 	}
@@ -93,7 +93,7 @@ func (helper Helper) ReleaseContainerAddresses(ctx context.Context, containerID 
 		if err := helper.FixedIPAllocator().ReturnFixedIP(ctx, address, container); err != nil {
 			logger.WithError(err).WithField("fixed-ip", address).WithField("container", container).Error("Return fixed ip error")
 		}
-		if err := helper.FixedIPAllocator().UnallocFixedIP(ctx, address); err != nil {
+		if err := helper.FixedIPAllocator().UnallocFixedIP(ctx, address, false); err != nil {
 			logger.Errorf("release reserved address error, cause = %v", err)
 		}
 	}

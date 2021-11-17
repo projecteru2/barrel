@@ -55,7 +55,7 @@ func (handler networkDisconnectHandler) Handle(ctx proxy.HandleContext, res http
 		pools []types.Pool
 		err   error
 	)
-	if pools, err = handler.CalicoIPAllocator().GetPoolsByNetworkName(
+	if pools, err = handler.DockerNetworkManager().GetPoolsByNetworkName(
 		context.Background(),
 		networkDisconnectRequest.networkIdentifier,
 	); err != nil {

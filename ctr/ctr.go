@@ -16,7 +16,6 @@ import (
 	// "github.com/projectcalico/libcalico-go/lib/options"
 	// cli "github.com/urfave/cli/v2"
 
-	"github.com/projecteru2/barrel/driver"
 	barrelEtcd "github.com/projecteru2/barrel/etcd"
 	barrelStore "github.com/projecteru2/barrel/store"
 	etcdStore "github.com/projecteru2/barrel/store/etcd"
@@ -31,6 +30,7 @@ type Ctr struct {
 	dockerCli   *dockerClient.Client
 	store       barrelStore.Store
 	ipAllocator vessel.FixedIPAllocator
+	ipPool      vessel.FixedIPPool
 	backend     bapi.Client
 }
 
@@ -91,16 +91,29 @@ func (c *Init) InitStore() *InitUnit {
 }
 
 // InitAllocator .
-func (c *Init) InitAllocator(dockerHost string, dockerVersion string, host string) *InitUnit {
+func (c *Init) InitAllocator(host string) *InitUnit {
 	return c.Require(
 		func() (err error) {
-			c.c.ipAllocator = vessel.NewFixedIPAllocator(vessel.NewIPPoolManager(
-				c.c.calico, c.c.dockerCli, driver.DriverName, host,
+			c.c.ipAllocator = vessel.NewFixedIPAllocator(vessel.NewCalicoIPAllocator(
+				c.c.calico, host,
 			), c.c.store)
 			return nil
 		},
 		c.InitCalico,
-		func() *InitUnit { return c.InitDocker(dockerHost, dockerVersion) },
+		c.InitStore,
+	)
+}
+
+// InitPoolManager .
+func (c *Init) InitPoolManager() *InitUnit {
+	return c.Require(
+		func() (err error) {
+			c.c.ipPool = vessel.NewFixedIPPool(vessel.NewCalicoIPPool(
+				c.c.calico,
+			), c.c.store)
+			return nil
+		},
+		c.InitCalico,
 		c.InitStore,
 	)
 }

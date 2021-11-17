@@ -24,7 +24,7 @@ func main() {
 	var etcdEndpoints string
 
 	app := &cli.App{
-		Name:    "Barrel Ctr",
+		Name:    "eru-barrel-utils",
 		Version: versioninfo.VERSION,
 		Before: func(c *cli.Context) error {
 			if os.Getenv(envETCDEndpoints) != "" {
@@ -48,6 +48,7 @@ func main() {
 			&cli.StringFlag{
 				Name:        "etcd-endpoints",
 				Usage:       "etcd endpoints",
+				Value:       "http://127.0.0.1:2379",
 				Destination: &etcdEndpoints,
 			},
 			&cli.StringFlag{
@@ -58,8 +59,9 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:        "docker-version",
-				Usage:       "docker version",
+				Usage:       "docker version (could be empty)",
 				Destination: &flags.DockerVersionFlag,
+				Value:       "1.37",
 			},
 		},
 	}

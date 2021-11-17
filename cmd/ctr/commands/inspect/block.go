@@ -26,19 +26,21 @@ func BlockCommand(_ *ctrtypes.Flags) *cli.Command {
 	inspectBlock := BlockInspect{}
 
 	return &cli.Command{
-		Name:   "block",
-		Usage:  "inspect calico block",
-		Action: inspectBlock.run,
+		Name:      "block",
+		Usage:     "inspect calico block",
+		ArgsUsage: "BLOCK_CIDR",
+		Action:    inspectBlock.run,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "pool",
-				Usage:       "pool",
+				Usage:       "use poolname to specific on which pool to inspect",
 				Required:    true,
 				Destination: &inspectBlock.poolFlag,
 			},
 			&cli.BoolFlag{
 				Name:        "only-empty",
 				Usage:       "list empty blocks only",
+				Value:       false,
 				Destination: &inspectBlock.onlyEmptyFlag,
 			},
 		},
@@ -49,7 +51,7 @@ func BlockCommand(_ *ctrtypes.Flags) *cli.Command {
 func (gb *BlockInspect) init(cli *cli.Context) (err error) {
 	blockCidr := cli.Args().First()
 	if blockCidr == "" {
-		return errors.New("")
+		return errors.New("must provide block cidr")
 	}
 	_, gb.block, err = cnet.ParseCIDR(blockCidr)
 	if err != nil {
