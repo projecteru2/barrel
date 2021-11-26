@@ -15,7 +15,7 @@ func DiagCommands(flags *ctrtypes.Flags) *cli.Command {
 		Subcommands: []*cli.Command{
 			diag.PoolCommand(flags),
 			diag.IPCommand(flags),
-			diag.HostCommand(flags),
+			diag.NodeCommand(flags),
 		},
 	}
 }

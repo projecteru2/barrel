@@ -1,6 +1,8 @@
 package release
 
 import (
+	"net"
+
 	"github.com/juju/errors"
 	cli "github.com/urfave/cli/v2"
 
@@ -14,8 +16,7 @@ type DelIP struct {
 	*ctrtypes.Flags
 	c           ctr.Ctr
 	poolFlag    string
-	ipFlag      string
-	hostFlag    string
+	ipArg       string
 	unallocFlag bool
 }
 
@@ -26,25 +27,21 @@ func IPCommand(flags *ctrtypes.Flags) *cli.Command {
 	}
 
 	return &cli.Command{
-		Name:   "ip",
-		Usage:  "release ip, fixed ip will be set to unoccupied",
-		Action: delIP.run,
-		Before: delIP.init,
+		Name:      "ip",
+		Usage:     "release ip, fixed ip will be set to unoccupied",
+		ArgsUsage: "ADDRESSV4",
+		Action:    delIP.run,
+		Before:    delIP.init,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "pool",
-				Usage:       "pool",
+				Usage:       "use poolname to specific pool that ip belongs to",
 				Required:    true,
 				Destination: &delIP.poolFlag,
 			},
-			&cli.StringFlag{
-				Name:        "host",
-				Usage:       "hostname",
-				Destination: &delIP.hostFlag,
-			},
 			&cli.BoolFlag{
 				Name:        "unalloc",
-				Usage:       "unalloc fixed ip",
+				Usage:       "if set, fixed ip will not only be unassigned but also unalloced",
 				Destination: &delIP.unallocFlag,
 			},
 		},
@@ -52,22 +49,22 @@ func IPCommand(flags *ctrtypes.Flags) *cli.Command {
 }
 
 func (d *DelIP) init(ctx *cli.Context) error {
-	if err := ctr.InitHost(&d.hostFlag); err != nil {
-		return err
-	}
-	d.ipFlag = ctx.Args().First()
-	if d.ipFlag == "" {
+	d.ipArg = ctx.Args().First()
+	if d.ipArg == "" {
 		return errors.New("must provide ip address")
 	}
+	if ip := net.ParseIP(d.ipArg); ip == nil || ip.To4() == nil {
+		return errors.New("must provide valid ipv4 address")
+	}
 	return ctr.InitCtr(&d.c, func(init *ctr.Init) {
-		init.InitAllocator(d.DockerHostFlag, d.DockerVersionFlag, "")
+		init.InitPoolManager()
 	})
 }
 
 func (d *DelIP) run(ctx *cli.Context) error {
 	if err := d.c.UnassignFixedIP(ctx.Context, types.IP{
 		PoolID:  d.poolFlag,
-		Address: d.ipFlag,
+		Address: d.ipArg,
 	}, d.unallocFlag); err != nil {
 		ctr.Fprintln("unassign fixed ip success")
 	}

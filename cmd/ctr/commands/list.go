@@ -13,8 +13,8 @@ func ListCommands(flags *ctrtypes.Flags) *cli.Command {
 		Name:  "list",
 		Usage: "list network resources",
 		Subcommands: []*cli.Command{
-			list.BlockCommand(flags),
-			list.IPCommand(flags),
+			list.BlocksCommand(flags),
+			list.IPSCommand(flags),
 		},
 	}
 }

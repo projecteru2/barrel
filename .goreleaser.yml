@@ -8,7 +8,6 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w
       - -X github.com/projecteru2/barrel/versioninfo.REVISION={{.Commit}}
       - -X github.com/projecteru2/barrel/versioninfo.VERSION={{.Env.VERSION}}
       - -X github.com/projecteru2/barrel/versioninfo.BUILTAT={{.Date}}
@@ -38,6 +37,8 @@ archives:
       windows: Windows
       386: i386
       amd64: x86_64
+    files:
+      - strip_debug.sh
 
 checksum:
   name_template: 'checksums.txt'

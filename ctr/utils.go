@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"os"
 	"reflect"
+	"strings"
 
 	"github.com/juju/errors"
 
@@ -194,4 +195,12 @@ func Fprintln(val string) error {
 func Ferrorln(val string) error {
 	_, err := fmt.Fprintf(os.Stderr, val+"\n")
 	return err
+}
+
+// AllocationBlockHost we can't use Host method of AllocationBlock
+func AllocationBlockHost(b *model.AllocationBlock) string {
+	if b.Affinity != nil && strings.HasPrefix(*b.Affinity, "host:") {
+		return strings.TrimPrefix(*b.Affinity, "host:")
+	}
+	return ""
 }

@@ -11,9 +11,9 @@ import (
 
 // DelWEP .
 type DelWEP struct {
-	c         ctr.Ctr
-	host      string
-	namespace string
+	c             ctr.Ctr
+	namespaceFlag string
+	wepNameArg    string
 }
 
 // WEPCommand .
@@ -23,18 +23,13 @@ func WEPCommand(_ *ctrtypes.Flags) *cli.Command {
 	return &cli.Command{
 		Name:      "wep",
 		Usage:     "release calico workload endpoints, relate ip will also be released",
-		ArgsUsage: "workload endpoint name",
+		ArgsUsage: "WORKLOAD_ENDPOINT_NAME",
 		Action:    delWEP.run,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:        "host",
-				Usage:       "host",
-				Destination: &delWEP.host,
-			},
-			&cli.StringFlag{
 				Name:        "namespace",
-				Usage:       "namespace",
-				Destination: &delWEP.namespace,
+				Usage:       "specific namespace wep belongs to",
+				Destination: &delWEP.namespaceFlag,
 			},
 		},
 		Before: delWEP.init,
@@ -42,20 +37,16 @@ func WEPCommand(_ *ctrtypes.Flags) *cli.Command {
 }
 
 func (del *DelWEP) init(ctx *cli.Context) error {
-	if err := ctr.InitHost(&del.host); err != nil {
-		return err
+	del.wepNameArg = ctx.Args().First()
+	if del.wepNameArg == "" {
+		return errors.New("must specific wep name")
 	}
 	return ctr.InitCtr(&del.c, func(init *ctr.Init) {
+		init.InitPoolManager()
 		init.InitCalico()
 	})
 }
 
 func (del *DelWEP) run(ctx *cli.Context) error {
-	args := ctx.Args()
-	if args.Len() == 0 {
-		return errors.New("must specific wep name")
-	}
-	wepName := args.First()
-
-	return del.c.RecycleWorkloadEndpoint(ctx.Context, wepName, del.namespace)
+	return del.c.RecycleWorkloadEndpointByName(ctx.Context, del.wepNameArg, del.namespaceFlag)
 }

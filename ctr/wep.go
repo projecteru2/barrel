@@ -30,15 +30,26 @@ func (c *Ctr) ListWorkloadEndpoints(ctx context.Context, namespace string, pooln
 
 	var poolWeps []v3.WorkloadEndpoint
 	for _, wep := range weps.Items {
-		if belongsToPool(wep, ipPool) {
+		if wep.Spec.Orchestrator == "yavirt" {
+			continue
+		}
+
+		poolNameMatched := false
+		for _, pn := range wep.Spec.Profiles {
+			if pn == poolname {
+				poolNameMatched = true
+			}
+		}
+
+		if poolNameMatched && belongsToPool(wep, ipPool) {
 			poolWeps = append(poolWeps, wep)
 		}
 	}
 	return poolWeps, nil
 }
 
-// RecycleWorkloadEndpoint .
-func (c *Ctr) RecycleWorkloadEndpoint(ctx context.Context, wepName string, poolname string) error {
+// RecycleWorkloadEndpointByName .
+func (c *Ctr) RecycleWorkloadEndpointByName(ctx context.Context, wepName string, poolname string) error {
 	wepList, err := c.calico.WorkloadEndpoints().List(ctx, options.ListOptions{Name: wepName})
 	if err != nil {
 		return err
@@ -54,6 +65,11 @@ func (c *Ctr) RecycleWorkloadEndpoint(ctx context.Context, wepName string, pooln
 		return errors.New("WorkloadEndpoint not found")
 	}
 
+	return c.RecycleWorkloadEndpoint(ctx, workloadEndpoint, poolname)
+}
+
+// RecycleWorkloadEndpoint .
+func (c *Ctr) RecycleWorkloadEndpoint(ctx context.Context, workloadEndpoint *v3.WorkloadEndpoint, poolname string) error {
 	if _, err := c.calico.WorkloadEndpoints().Delete(
 		ctx,
 		workloadEndpoint.Namespace,
@@ -82,9 +98,8 @@ func belongsToPool(wep v3.WorkloadEndpoint, pool *v3.IPPool) bool {
 		return false
 	}
 	for _, addr := range wep.Spec.IPNetworks {
-		ip := cnet.ParseIP(addr)
-
-		if ip == nil {
+		ip, _, err := cnet.ParseCIDR(addr)
+		if err != nil {
 			continue
 		}
 

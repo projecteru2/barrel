@@ -187,7 +187,7 @@ func (app Application) networkPluginOnlyMode() ([]service.Service, error) {
 	if dockerCli, err = app.getDockerClient(); err != nil {
 		return nil, err
 	}
-	allocator = vessel.NewIPPoolManager(client, dockerCli, app.DriverName, app.Hostname)
+	allocator = vessel.NewCalicoIPAllocator(client, app.Hostname)
 	return []service.Service{
 		pluginService{
 			ipam:   calicoDriver.NewIpam(allocator, app.RequestTimeout),

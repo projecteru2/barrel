@@ -4,8 +4,6 @@ import (
 	"context"
 	"net"
 
-	dockerTypes "github.com/docker/docker/api/types"
-	dockerClient "github.com/docker/docker/client"
 	"github.com/juju/errors"
 	apiv3 "github.com/projectcalico/libcalico-go/lib/apis/v3"
 	"github.com/projectcalico/libcalico-go/lib/clientv3"
@@ -20,40 +18,53 @@ import (
 
 const addressAny = "::/0"
 
-// CalicoIPAllocator .
-type CalicoIPAllocator interface {
-	AllocIP(ctx context.Context, ip types.IP) error
-	AllocIPFromPool(ctx context.Context, poolID string) (types.IPAddress, error)
+// CalicoIPPool .
+type CalicoIPPool interface {
 	UnallocIP(ctx context.Context, ip types.IP) error
 	GetPoolByID(ctx context.Context, poolID string) (types.Pool, error)
 	GetPoolByCIDR(ctx context.Context, cidr string) (types.Pool, error)
 	GetPoolsByCIDRS(ctx context.Context, cidr []string) ([]types.Pool, error)
 	GetDefaultPool(ipv6 bool) types.Pool
-	AllocIPFromPools(ctx context.Context, pools []types.Pool) (types.IPAddress, error)
-	GetPoolsByNetworkName(ctx context.Context, name string) ([]types.Pool, error)
 }
 
-type manager struct {
+// CalicoIPAllocator .
+type CalicoIPAllocator interface {
+	AllocIP(ctx context.Context, ip types.IP) error
+	AllocIPFromPool(ctx context.Context, poolID string) (types.IPAddress, error)
+	AllocIPFromPools(ctx context.Context, pools []types.Pool) (types.IPAddress, error)
+	CalicoIPPool
+}
+type calicoIPPoolmanager struct {
 	cliv3 clientv3.Interface
 	utils.LoggerFactory
-	driverName string
-	dockerCli  *dockerClient.Client
-	hostname   string
 }
 
-// NewIPPoolManager .
-func NewIPPoolManager(cliv3 clientv3.Interface, dockerCli *dockerClient.Client, driverName string, hostname string) CalicoIPAllocator {
-	return manager{
+type calicoIPAllocator struct {
+	calicoIPPoolmanager
+	hostname string
+}
+
+// NewCalicoIPPool .
+func NewCalicoIPPool(cliv3 clientv3.Interface) CalicoIPPool {
+	return calicoIPPoolmanager{
 		cliv3:         cliv3,
-		dockerCli:     dockerCli,
-		driverName:    driverName,
-		LoggerFactory: utils.NewObjectLogger("networkAgent"),
-		hostname:      hostname,
+		LoggerFactory: utils.NewObjectLogger("calicoIPPoolManager"),
+	}
+}
+
+// NewCalicoIPAllocator .
+func NewCalicoIPAllocator(cliv3 clientv3.Interface, hostname string) CalicoIPAllocator {
+	return calicoIPAllocator{
+		calicoIPPoolmanager: calicoIPPoolmanager{
+			cliv3:         cliv3,
+			LoggerFactory: utils.NewObjectLogger("calicoIPAllocator"),
+		},
+		hostname: hostname,
 	}
 }
 
 // AssignIP .
-func (m manager) AllocIP(ctx context.Context, ip types.IP) error {
+func (m calicoIPAllocator) AllocIP(ctx context.Context, ip types.IP) error {
 	var err error
 
 	netIP := net.ParseIP(ip.Address)
@@ -74,7 +85,7 @@ func (m manager) AllocIP(ctx context.Context, ip types.IP) error {
 }
 
 // AutoAssign .
-func (m manager) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAddress, error) {
+func (m calicoIPAllocator) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAddress, error) {
 	var err error
 
 	// No address requested, so auto assign from our pools.
@@ -153,12 +164,32 @@ func (m manager) AllocIPFromPool(ctx context.Context, poolID string) (types.IPAd
 	}, nil
 }
 
-func formatIP(ip caliconet.IPNet) string {
-	return ip.IPNet.IP.String()
+// ReserveAddressFromPools .
+func (m calicoIPAllocator) AllocIPFromPools(ctx context.Context, pools []types.Pool) (types.IPAddress, error) {
+	logger := m.Logger("AssignIPFromPools")
+
+	var (
+		ip  types.IPAddress
+		err error
+	)
+	if len(pools) == 1 {
+		return m.AllocIPFromPool(ctx, pools[0].Name)
+	}
+
+	var poolNames []string
+	for _, pool := range pools {
+		if ip, err = m.AllocIPFromPool(ctx, pool.Name); err != nil {
+			poolNames = append(poolNames, pool.Name)
+			logger.Errorf("AutoAssign from %s error, %v", pool.Name, err)
+			continue
+		}
+		return ip, nil
+	}
+	return types.IPAddress{}, errors.Errorf("AutoAssign from %v failed", poolNames)
 }
 
 // GetIPPool .
-func (m manager) GetPoolByID(ctx context.Context, poolID string) (types.Pool, error) {
+func (m calicoIPPoolmanager) GetPoolByID(ctx context.Context, poolID string) (types.Pool, error) {
 	var (
 		p     *apiv3.IPPool
 		ipNet *caliconet.IPNet
@@ -184,7 +215,7 @@ func (m manager) GetPoolByID(ctx context.Context, poolID string) (types.Pool, er
 }
 
 // ReleaseIP .
-func (m manager) UnallocIP(ctx context.Context, ip types.IP) error {
+func (m calicoIPPoolmanager) UnallocIP(ctx context.Context, ip types.IP) error {
 	calicoIP := caliconet.IP{IP: net.ParseIP(ip.Address)}
 	// Unassign the address.  This handles the address already being unassigned
 	// in which case it is a no-op.
@@ -197,12 +228,12 @@ func (m manager) UnallocIP(ctx context.Context, ip types.IP) error {
 }
 
 // IPPools .
-func (m manager) IPPools(ctx context.Context) (*apiv3.IPPoolList, error) {
+func (m calicoIPPoolmanager) IPPools(ctx context.Context) (*apiv3.IPPoolList, error) {
 	return m.cliv3.IPPools().List(ctx, options.ListOptions{})
 }
 
 // RequestPool .
-func (m manager) GetPoolByCIDR(ctx context.Context, cidr string) (types.Pool, error) {
+func (m calicoIPPoolmanager) GetPoolByCIDR(ctx context.Context, cidr string) (types.Pool, error) {
 	var (
 		ipNet *caliconet.IPNet
 		pools *apiv3.IPPoolList
@@ -240,7 +271,7 @@ func (m manager) GetPoolByCIDR(ctx context.Context, cidr string) (types.Pool, er
 }
 
 // RequestPools .
-func (m manager) GetPoolsByCIDRS(ctx context.Context, cidrs []string) ([]types.Pool, error) {
+func (m calicoIPPoolmanager) GetPoolsByCIDRS(ctx context.Context, cidrs []string) ([]types.Pool, error) {
 	var (
 		ipNets = make(map[string]*caliconet.IPNet)
 		pools  *apiv3.IPPoolList
@@ -282,7 +313,7 @@ func (m manager) GetPoolsByCIDRS(ctx context.Context, cidrs []string) ([]types.P
 }
 
 // RequestDefaultPool .
-func (m manager) GetDefaultPool(v6 bool) types.Pool {
+func (m calicoIPPoolmanager) GetDefaultPool(v6 bool) types.Pool {
 	if v6 {
 		// Default the poolID to the fixed value.
 		return types.Pool{
@@ -299,30 +330,6 @@ func (m manager) GetDefaultPool(v6 bool) types.Pool {
 	}
 }
 
-// ReserveAddressFromPools .
-func (m manager) AllocIPFromPools(ctx context.Context, pools []types.Pool) (types.IPAddress, error) {
-	logger := m.Logger("AssignIPFromPools")
-
-	var (
-		ip  types.IPAddress
-		err error
-	)
-	if len(pools) == 1 {
-		return m.AllocIPFromPool(ctx, pools[0].Name)
-	}
-
-	var poolNames []string
-	for _, pool := range pools {
-		if ip, err = m.AllocIPFromPool(ctx, pool.Name); err != nil {
-			poolNames = append(poolNames, pool.Name)
-			logger.Errorf("AutoAssign from %s error, %v", pool.Name, err)
-			continue
-		}
-		return ip, nil
-	}
-	return types.IPAddress{}, errors.Errorf("AutoAssign from %v failed", poolNames)
-}
-
 func included(pools []types.Pool, poolID string) bool {
 	for _, pool := range pools {
 		if pool.Name == poolID {
@@ -332,24 +339,6 @@ func included(pools []types.Pool, poolID string) bool {
 	return false
 }
 
-// GetIPPoolsByNetworkName .
-func (m manager) GetPoolsByNetworkName(ctx context.Context, name string) ([]types.Pool, error) {
-	var (
-		network dockerTypes.NetworkResource
-		err     error
-	)
-	if network, err = m.dockerCli.NetworkInspect(ctx, name, dockerTypes.NetworkInspectOptions{}); err != nil {
-		return nil, err
-	}
-	if network.Driver != m.driverName {
-		return nil, types.ErrUnsupervisedNetwork
-	}
-	if len(network.IPAM.Config) == 0 {
-		return nil, types.ErrConfiguredPoolUnfound
-	}
-	var cidrs []string
-	for _, config := range network.IPAM.Config {
-		cidrs = append(cidrs, config.Subnet)
-	}
-	return m.GetPoolsByCIDRS(ctx, cidrs)
+func formatIP(ip caliconet.IPNet) string {
+	return ip.IPNet.IP.String()
 }

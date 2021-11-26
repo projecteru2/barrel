@@ -52,7 +52,7 @@ func (handler networkConnectHandler) Handle(ctx proxy.HandleContext, res http.Re
 		ctx.Next()
 		return
 	}
-	if pools, err = handler.CalicoIPAllocator().GetPoolsByNetworkName(
+	if pools, err = handler.DockerNetworkManager().GetPoolsByNetworkName(
 		context.Background(),
 		networkConnectRequest.networkIdentifier,
 	); err != nil {
@@ -117,7 +117,7 @@ func (handler networkConnectHandler) Handle(ctx proxy.HandleContext, res http.Re
 func (handler networkConnectHandler) releaseReservedAddress(address types.IP, label string) {
 	logger := handler.Logger("releaseReservedAddress")
 
-	if err := handler.FixedIPAllocator().UnallocFixedIP(context.Background(), address); err != nil {
+	if err := handler.FixedIPAllocator().UnallocFixedIP(context.Background(), address, false); err != nil {
 		logger.Errorf("release reserved address error when %s, cause = %v", label, err)
 	}
 }
@@ -228,6 +228,7 @@ func (handler networkConnectHandler) writeServerResponse(
 			if err := handler.FixedIPAllocator().UnallocFixedIP(
 				context.Background(),
 				fixedIPAddress,
+				false,
 			); err != nil {
 				logger.Errorf("release address error after unsuccess container create, cause = %v", err)
 			}

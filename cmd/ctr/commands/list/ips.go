@@ -18,17 +18,18 @@ type IPList struct {
 	poolFlag string
 }
 
-// IPCommand .
-func IPCommand(_ *ctrtypes.Flags) *cli.Command {
+// IPSCommand .
+func IPSCommand(_ *ctrtypes.Flags) *cli.Command {
 	list := IPList{}
 
 	return &cli.Command{
-		Name:  "ip",
-		Usage: "list barrel fixed ip",
+		Name:      "ips",
+		Usage:     "list barrel fixed ip",
+		ArgsUsage: " ",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "pool",
-				Usage:       "pool",
+				Usage:       "use poolname to specific pool that fixed ip belongs to",
 				Destination: &list.poolFlag,
 				Required:    true,
 			},

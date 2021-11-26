@@ -62,14 +62,14 @@ func (c *Ctr) ListFixedIP(ctx context.Context, poolname string) ([]*types.IPInfo
 // UnassignFixedIP .
 func (c *Ctr) UnassignFixedIP(ctx context.Context, ip types.IP, unalloc bool) error {
 	if unalloc {
-		return c.ipAllocator.UnallocFixedIP(ctx, ip)
+		return c.ipPool.UnallocFixedIP(ctx, ip, true)
 	}
-	if err := c.ipAllocator.UnassignFixedIP(
+	if err := c.ipPool.UnassignFixedIP(
 		ctx,
 		ip,
 	); err != nil {
 		if err == types.ErrFixedIPNotAllocated && unalloc {
-			return c.ipAllocator.UnallocIP(ctx, ip)
+			return c.ipPool.UnallocIP(ctx, ip)
 		}
 		return err
 	}
@@ -172,24 +172,24 @@ func (c *Ctr) ReleaseEmptyBlock(ctx context.Context, cidr cnet.IPNet, host strin
 	return c.calico.IPAM().ReleaseAffinity(ctx, cidr, host, true)
 }
 
-// ListHostBlockOnPoolOpt .
-type ListHostBlockOnPoolOpt struct {
+// ListBlockByHostAndPoolOpt .
+type ListBlockByHostAndPoolOpt struct {
 	Hostname string
 	Poolname string
 }
 
-// ListHostBlockOpt .
-type ListHostBlockOpt struct {
+// ListBlockByHostOpt .
+type ListBlockByHostOpt struct {
 	Hostname string
 }
 
-// ListPoolBlockOpt .
-type ListPoolBlockOpt struct {
+// ListBlockByPoolOpt .
+type ListBlockByPoolOpt struct {
 	Poolname string
 }
 
 // ListInterface .
-func (opt ListHostBlockOnPoolOpt) ListInterface() model.ListInterface {
+func (opt ListBlockByHostAndPoolOpt) ListInterface() model.ListInterface {
 	if opt.Hostname == "" {
 		return model.BlockListOptions{IPVersion: 4}
 	}
@@ -197,7 +197,7 @@ func (opt ListHostBlockOnPoolOpt) ListInterface() model.ListInterface {
 }
 
 // IPPool .
-func (opt ListHostBlockOnPoolOpt) IPPool(ctx context.Context, ipPools clientv3.IPPoolInterface) (ipPool *v3.IPPool, err error) {
+func (opt ListBlockByHostAndPoolOpt) IPPool(ctx context.Context, ipPools clientv3.IPPoolInterface) (ipPool *v3.IPPool, err error) {
 	if opt.Poolname == "" {
 		return nil, nil
 	}
@@ -209,7 +209,7 @@ func (opt ListHostBlockOnPoolOpt) IPPool(ctx context.Context, ipPools clientv3.I
 }
 
 // CheckAffinity .
-func (opt ListHostBlockOnPoolOpt) CheckAffinity(block *model.AllocationBlock) bool {
+func (opt ListBlockByHostAndPoolOpt) CheckAffinity(block *model.AllocationBlock) bool {
 	if opt.Hostname == "" {
 		return true
 	}
@@ -217,27 +217,27 @@ func (opt ListHostBlockOnPoolOpt) CheckAffinity(block *model.AllocationBlock) bo
 }
 
 // ListInterface .
-func (opt ListHostBlockOpt) ListInterface() model.ListInterface {
+func (opt ListBlockByHostOpt) ListInterface() model.ListInterface {
 	return model.BlockAffinityListOptions{Host: opt.Hostname, IPVersion: 4}
 }
 
 // IPPool .
-func (opt ListHostBlockOpt) IPPool(ctx context.Context, ipPools clientv3.IPPoolInterface) (ipPool *v3.IPPool, err error) {
+func (opt ListBlockByHostOpt) IPPool(ctx context.Context, ipPools clientv3.IPPoolInterface) (ipPool *v3.IPPool, err error) {
 	return nil, nil
 }
 
 // CheckAffinity .
-func (opt ListHostBlockOpt) CheckAffinity(block *model.AllocationBlock) bool {
+func (opt ListBlockByHostOpt) CheckAffinity(block *model.AllocationBlock) bool {
 	return BlockHasAffinity(block, opt.Hostname)
 }
 
 // ListInterface .
-func (opt ListPoolBlockOpt) ListInterface() model.ListInterface {
+func (opt ListBlockByPoolOpt) ListInterface() model.ListInterface {
 	return model.BlockListOptions{IPVersion: 4}
 }
 
 // IPPool .
-func (opt ListPoolBlockOpt) IPPool(ctx context.Context, ipPools clientv3.IPPoolInterface) (ipPool *v3.IPPool, err error) {
+func (opt ListBlockByPoolOpt) IPPool(ctx context.Context, ipPools clientv3.IPPoolInterface) (ipPool *v3.IPPool, err error) {
 	if ipPool, err = ipPools.Get(ctx, opt.Poolname, options.GetOptions{}); err != nil {
 		log.Errorf("Invalid Pool - %v", opt.Poolname)
 		return nil, err
@@ -246,7 +246,7 @@ func (opt ListPoolBlockOpt) IPPool(ctx context.Context, ipPools clientv3.IPPoolI
 }
 
 // CheckAffinity .
-func (opt ListPoolBlockOpt) CheckAffinity(block *model.AllocationBlock) bool {
+func (opt ListBlockByPoolOpt) CheckAffinity(block *model.AllocationBlock) bool {
 	return true
 }
 

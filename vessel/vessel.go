@@ -22,20 +22,24 @@ type Vessel interface {
 	Hostname() string
 	ContainerVessel() ContainerVessel
 	CalicoIPAllocator() CalicoIPAllocator
+	DockerNetworkManager() DockerNetworkManager
 	FixedIPAllocator() FixedIPAllocator
 }
 
 type vessel struct {
-	hostname         string
-	containerVessel  ContainerVessel
-	fixedIPAllocator FixedIPAllocator
+	hostname             string
+	containerVessel      ContainerVessel
+	fixedIPAllocator     FixedIPAllocator
+	dockerNetworkManager DockerNetworkManager
 }
 
 // NewVessel .
 func NewVessel(hostname string, cliv3 clientv3.Interface, dockerCli *dockerClient.Client, driverName string, stor store.Store) Vessel {
+	allocator := NewCalicoIPAllocator(cliv3, hostname)
 	return vessel{
-		hostname:         hostname,
-		fixedIPAllocator: NewFixedIPAllocator(NewIPPoolManager(cliv3, dockerCli, driverName, hostname), stor),
+		hostname:             hostname,
+		fixedIPAllocator:     NewFixedIPAllocator(allocator, stor),
+		dockerNetworkManager: NewDockerNetworkManager(dockerCli, driverName, allocator),
 	}
 }
 
@@ -49,6 +53,10 @@ func (v vessel) ContainerVessel() ContainerVessel {
 
 func (v vessel) CalicoIPAllocator() CalicoIPAllocator {
 	return v.fixedIPAllocator
+}
+
+func (v vessel) DockerNetworkManager() DockerNetworkManager {
+	return v.dockerNetworkManager
 }
 
 func (v vessel) FixedIPAllocator() FixedIPAllocator {

@@ -24,18 +24,19 @@ func BlockCommand(_ *ctrtypes.Flags) *cli.Command {
 	release := BlockRelease{}
 
 	return &cli.Command{
-		Name:   "block",
-		Usage:  "release calico ip blocks of specific host",
-		Action: release.run,
+		Name:      "block",
+		Usage:     "release calico ip blocks of specific host",
+		ArgsUsage: "BLOCK_CIDR",
+		Action:    release.run,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "host",
-				Usage:       "host",
+				Usage:       "use hostname to specific host which block belongs to (not required)",
 				Destination: &release.hostFlag,
 			},
 			&cli.StringFlag{
 				Name:        "pool",
-				Usage:       "pool",
+				Usage:       "use poolname to specific pool that block belongs to",
 				Required:    true,
 				Destination: &release.poolFlag,
 			},
@@ -51,9 +52,14 @@ func BlockCommand(_ *ctrtypes.Flags) *cli.Command {
 }
 
 func (release *BlockRelease) init(ctx *cli.Context) (err error) {
-	if err := ctr.InitHost(&release.hostFlag); err != nil {
-		return err
+	if release.hostFlag == "" {
+		block, err := release.c.GetBlock(ctx.Context, *release.cidr, release.poolFlag)
+		if err != nil {
+			return err
+		}
+		release.hostFlag = ctr.AllocationBlockHost(block)
 	}
+
 	_, release.cidr, err = cnet.ParseCIDR(release.cidrFlag)
 	if err != nil {
 		log.WithError(err).Errorf("Parse cidr %s failed", release.cidrFlag)

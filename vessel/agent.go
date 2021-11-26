@@ -31,7 +31,7 @@ type AgentConfig struct {
 type networkAgent struct {
 	hostname        string
 	pollers         pollers
-	allocator       CalicoIPAllocator
+	vess            Vessel
 	dockerClient    docker.Client
 	chErr           chan error
 	mutex           sync.Mutex
@@ -40,7 +40,6 @@ type networkAgent struct {
 	pollTimeout     time.Duration
 	closed          utils.AtomicBool
 	notifier        notifier
-	containerVessel ContainerVessel
 }
 
 // NewAgent .
@@ -50,8 +49,7 @@ func NewAgent(vess Vessel, config AgentConfig) interface {
 } {
 	return &networkAgent{
 		pollers:         newPollers(),
-		allocator:       vess.CalicoIPAllocator(),
-		containerVessel: vess.ContainerVessel(),
+		vess:            vess,
 		minPollInterval: config.MinInterval,
 		pollInterval:    config.PollInterval,
 		pollTimeout:     config.PollTimeout,
@@ -186,12 +184,12 @@ func (agent *networkAgent) poll() error {
 		return err
 	}
 
-	if containerInfos, err = agent.containerVessel.ListContainers(); err != nil {
+	if containerInfos, err = agent.vess.ContainerVessel().ListContainers(); err != nil {
 		logger.Errorf("ListContainers Error, %v", err)
 		return err
 	}
 
-	matchEvent := newMatchEvent(agent.hostname, agent.allocator, dockerContainers, containerInfos)
+	matchEvent := newMatchEvent(agent.hostname, agent.vess, dockerContainers, containerInfos)
 	logger.Info("match pollers")
 	agent.pollers.match(matchEvent)
 	r := matchEvent.result()
@@ -207,12 +205,12 @@ func (agent *networkAgent) commit(pollResults []pollResult) {
 	logger.Infof("start, matched results = %v", pollResults)
 	for _, result := range pollResults {
 		if result.add {
-			if err := agent.containerVessel.UpdateContainer(context.Background(), result.containerInfo); err != nil {
+			if err := agent.vess.ContainerVessel().UpdateContainer(context.Background(), result.containerInfo); err != nil {
 				logger.Errorf("UpdateContainer error, cause=%v", err)
 			}
 			continue
 		}
-		if err := agent.containerVessel.DeleteContainer(context.Background(), result.containerInfo); err != nil {
+		if err := agent.vess.ContainerVessel().DeleteContainer(context.Background(), result.containerInfo); err != nil {
 			logger.Errorf("DeleteContainer error, cause=%v", err)
 		}
 	}
@@ -308,7 +306,7 @@ func (pollers *pollers) match(
 
 type matchEvent struct {
 	utils.ObjectLogger
-	allocator          CalicoIPAllocator
+	vess               Vessel
 	hostname           string
 	matched            map[string]pollResult
 	containerMap       map[string]map[string]dockerTypes.Container
@@ -317,7 +315,7 @@ type matchEvent struct {
 
 func newMatchEvent(
 	hostname string,
-	allocator CalicoIPAllocator,
+	vess Vessel,
 	containers []dockerTypes.Container,
 	containerInfos []types.ContainerInfo,
 ) matchEvent {
@@ -347,7 +345,7 @@ func newMatchEvent(
 	return matchEvent{
 		ObjectLogger:       utils.ObjectLogger{ObjectName: "matchEvent"},
 		hostname:           hostname,
-		allocator:          allocator,
+		vess:               vess,
 		matched:            make(map[string]pollResult),
 		containerMap:       containerMap,
 		vesselContainerMap: vesselContainerMap,
@@ -427,7 +425,7 @@ func (event matchEvent) makeAddPollResult(c dockerTypes.Container) (pollResult, 
 			err     error
 			address = network.IPAddress
 		)
-		if pools, err = event.allocator.GetPoolsByNetworkName(context.Background(), networkName); err != nil {
+		if pools, err = event.vess.DockerNetworkManager().GetPoolsByNetworkName(context.Background(), networkName); err != nil {
 			return pollResult{}, err
 		}
 		size := len(pools)

@@ -17,7 +17,7 @@ import (
 // BlocksRelease .
 type BlocksRelease struct {
 	c        ctr.Ctr
-	hostFlag string
+	nodeFlag string
 	poolFlag string
 }
 
@@ -26,18 +26,19 @@ func BlocksCommand(_ *ctrtypes.Flags) *cli.Command {
 	release := BlocksRelease{}
 
 	return &cli.Command{
-		Name:   "blocks",
-		Usage:  "release calico ip blocks",
-		Action: release.run,
+		Name:      "blocks",
+		Usage:     "release calico ip blocks",
+		ArgsUsage: " ",
+		Action:    release.run,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:        "host",
-				Usage:       "host",
-				Destination: &release.hostFlag,
+				Name:        "node",
+				Usage:       "use nodename to specific node which blocks belongs to",
+				Destination: &release.nodeFlag,
 			},
 			&cli.StringFlag{
 				Name:        "pool",
-				Usage:       "pool",
+				Usage:       "use poolname to specific pool that blocks belongs to",
 				Destination: &release.poolFlag,
 			},
 		},
@@ -46,8 +47,8 @@ func BlocksCommand(_ *ctrtypes.Flags) *cli.Command {
 }
 
 func (release *BlocksRelease) init(ctx *cli.Context) (err error) {
-	if release.poolFlag == "" && release.hostFlag == "" {
-		return errors.New("must either provide host or pool on which to release blocks")
+	if release.poolFlag == "" && release.nodeFlag == "" {
+		return errors.New("must either provide node or pool on which to release blocks")
 	}
 	return ctr.InitCtr(&release.c, func(init *ctr.Init) {
 		init.InitCalico()
@@ -65,18 +66,18 @@ func (release *BlocksRelease) run(ctx *cli.Context) (err error) {
 		return nil
 	}
 	for _, block := range blocks {
-		if err := release.c.ReleaseEmptyBlock(ctx.Context, block.CIDR, block.Host()); err != nil {
+		if err := release.c.ReleaseEmptyBlock(ctx.Context, block.CIDR, ctr.AllocationBlockHost(block)); err != nil {
 			fmt.Fprintf(os.Stderr, "release block(%v) error, cause = %v\n", block.CIDR, err)
 			continue
 		}
-		fmt.Fprintf(os.Stdout, "release block success, cidr = %v, host = %v", block.CIDR, block.Host())
+		fmt.Fprintf(os.Stdout, "release block success, cidr = %v, host = %v\n", block.CIDR, ctr.AllocationBlockHost(block))
 	}
 	return nil
 }
 
 func (release *BlocksRelease) getEmptyBlocks(ctx context.Context) (result []*model.AllocationBlock, err error) {
-	blocks, err := release.c.ListBlocks(ctx, ctr.ListHostBlockOnPoolOpt{
-		Hostname: release.hostFlag,
+	blocks, err := release.c.ListBlocks(ctx, ctr.ListBlockByHostAndPoolOpt{
+		Hostname: release.nodeFlag,
 		Poolname: release.poolFlag,
 	})
 	if err != nil {

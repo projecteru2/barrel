@@ -4,6 +4,8 @@ dist
 cert/
 barrel
 eru-barrel
+eru-barrel.debug
+eru-barrel.release
 eru-barrel-utils
 vendor/*
 .mypy_cache

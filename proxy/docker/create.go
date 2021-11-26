@@ -86,7 +86,7 @@ func (handler containerCreateHandler) Handle(ctx proxy.HandleContext, res http.R
 		writeErrorResponse(res, logger, err, "check and request fixed-ip")
 		if len(fixedIPAddress) > 0 {
 			for _, address := range fixedIPAddress {
-				if err := handler.vess.FixedIPAllocator().UnallocFixedIP(context.Background(), address); err != nil {
+				if err := handler.vess.FixedIPAllocator().UnallocFixedIP(context.Background(), address, false); err != nil {
 					logger.Errorf("release ip error after checkAndRequestFixedIP failed, cause = %v", err)
 				}
 			}
@@ -228,7 +228,7 @@ func (handler containerCreateHandler) visitNetworkConfigAndAllocateAddress(
 		if !isCustomNetwork(networkName) {
 			continue
 		}
-		if pools, err = handler.vess.CalicoIPAllocator().GetPoolsByNetworkName(context.Background(), networkName); err != nil {
+		if pools, err = handler.vess.DockerNetworkManager().GetPoolsByNetworkName(context.Background(), networkName); err != nil {
 			if err == types.ErrUnsupervisedNetwork {
 				continue
 			}
@@ -263,7 +263,7 @@ func (handler containerCreateHandler) writeServerResponse(
 			logger.Errorf("forward message failed, cause = %v", err)
 		}
 		for _, address := range fixedIPAddress {
-			if err := handler.vess.FixedIPAllocator().UnallocFixedIP(context.Background(), address); err != nil {
+			if err := handler.vess.FixedIPAllocator().UnallocFixedIP(context.Background(), address, false); err != nil {
 				logger.Errorf("release reserved address failed, cause = %v", err)
 			}
 		}

@@ -23,22 +23,23 @@ type BlockList struct {
 	onlyEmptyFlag bool
 }
 
-// BlockCommand .
-func BlockCommand(_ *ctrtypes.Flags) *cli.Command {
+// BlocksCommand .
+func BlocksCommand(_ *ctrtypes.Flags) *cli.Command {
 	listBlocks := BlockList{}
 
 	return &cli.Command{
-		Name:  "block",
-		Usage: "list blocks",
+		Name:      "blocks",
+		Usage:     "list blocks",
+		ArgsUsage: " ",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "host",
-				Usage:       "host",
+				Usage:       "use hostname to specific host which blocks belongs to",
 				Destination: &listBlocks.hostFlag,
 			},
 			&cli.StringFlag{
 				Name:        "pool",
-				Usage:       "pool",
+				Usage:       "use poolname to specific pool that blocks belongs to",
 				Required:    true,
 				Destination: &listBlocks.poolFlag,
 			},
@@ -55,7 +56,7 @@ func BlockCommand(_ *ctrtypes.Flags) *cli.Command {
 
 func (list *BlockList) init(ctx *cli.Context) (err error) {
 	if list.poolFlag == "" && list.hostFlag == "" {
-		return errors.New("must either provide host or pool on which to release blocks")
+		return errors.New("must either provide host or pool on which to list blocks")
 	}
 	return ctr.InitCtr(&list.c, func(init *ctr.Init) {
 		init.InitCalico()
@@ -96,7 +97,7 @@ func (list *BlockList) run(cli *cli.Context) (err error) {
 func (list *BlockList) getBlocks(ctx context.Context) (
 	nonEmptyBlocks []*model.AllocationBlock, emptyBlocks []*model.AllocationBlock, err error,
 ) {
-	blocks, err := list.c.ListBlocks(ctx, ctr.ListHostBlockOnPoolOpt{
+	blocks, err := list.c.ListBlocks(ctx, ctr.ListBlockByHostAndPoolOpt{
 		Hostname: list.hostFlag,
 		Poolname: list.poolFlag,
 	})

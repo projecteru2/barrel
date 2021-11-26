@@ -2,6 +2,7 @@ package inspect
 
 import (
 	"encoding/json"
+	"net"
 
 	"github.com/juju/errors"
 	cli "github.com/urfave/cli/v2"
@@ -15,7 +16,7 @@ import (
 type IPInspect struct {
 	c        ctr.Ctr
 	poolFlag string
-	ipFlag   string
+	ipArg    string
 }
 
 // IPCommand .
@@ -23,20 +24,15 @@ func IPCommand(_ *ctrtypes.Flags) *cli.Command {
 	getIP := IPInspect{}
 
 	return &cli.Command{
-		Name:   "ip",
-		Usage:  "inspect barrel fixed ip",
-		Action: getIP.run,
+		Name:      "ip",
+		Usage:     "inspect barrel fixed ip",
+		ArgsUsage: "ADDRESSV4",
+		Action:    getIP.run,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "pool",
 				Usage:       "pool",
 				Destination: &getIP.poolFlag,
-				Required:    true,
-			},
-			&cli.StringFlag{
-				Name:        "ip",
-				Usage:       "ip",
-				Destination: &getIP.ipFlag,
 				Required:    true,
 			},
 		},
@@ -45,6 +41,14 @@ func IPCommand(_ *ctrtypes.Flags) *cli.Command {
 }
 
 func (g *IPInspect) init(ctx *cli.Context) error {
+	g.ipArg = ctx.Args().First()
+	if g.ipArg == "" {
+		return errors.New("must provide ip address")
+	}
+	if ip := net.ParseIP(g.ipArg); ip == nil || ip.To4() == nil {
+		return errors.New("must provide valid ipv4 address")
+	}
+
 	return ctr.InitCtr(&g.c, func(init *ctr.Init) {
 		init.InitStore()
 	})
@@ -53,7 +57,7 @@ func (g *IPInspect) init(ctx *cli.Context) error {
 func (g *IPInspect) run(ctx *cli.Context) error {
 	ip, exists, err := g.c.InspectFixedIP(ctx.Context, types.IP{
 		PoolID:  g.poolFlag,
-		Address: g.ipFlag,
+		Address: g.ipArg,
 	})
 	if err != nil {
 		return err

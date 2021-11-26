@@ -33,8 +33,11 @@ func TestPollEvent(t *testing.T) {
 		},
 	}
 	contaienrInfos := []types.ContainerInfo{}
+	vess := vessel{
+		dockerNetworkManager: mockDockerNetworkManager(),
+	}
 	matchEvent := newMatchEvent(
-		"localhost", mockAllocator(), dockerContainers, contaienrInfos)
+		"localhost", vess, dockerContainers, contaienrInfos)
 	pollers := pollers{
 		pollers: make(map[string]map[string]endpointUpdatePoller),
 	}
@@ -70,8 +73,13 @@ func TestPollRemoveEvent(t *testing.T) {
 			},
 		},
 	}
+
+	vess := vessel{
+		dockerNetworkManager: mockDockerNetworkManager(),
+	}
+
 	matchEvent := newMatchEvent(
-		"localhost", mockAllocator(), dockerContainers, contaienrInfos)
+		"localhost", vess, dockerContainers, contaienrInfos)
 	pollers := pollers{
 		pollers: make(map[string]map[string]endpointUpdatePoller),
 	}
@@ -174,14 +182,16 @@ func TestAgent(t *testing.T) {
 		return nil
 	})
 
-	allocator := mockAllocator()
+	vess := vessel{
+		containerVessel:      &containerVessel,
+		dockerNetworkManager: mockDockerNetworkManager(),
+	}
 
 	agent := networkAgent{
 		hostname:        "localhost",
 		dockerClient:    &dockerClient,
-		containerVessel: &containerVessel,
+		vess:            vess,
 		pollers:         newPollers(),
-		allocator:       allocator,
 		notifier:        notifier{},
 		pollInterval:    time.Duration(30) * time.Second,
 		minPollInterval: time.Duration(1) * time.Second,
@@ -221,8 +231,8 @@ func TestAgent(t *testing.T) {
 	co.Await()
 }
 
-func mockAllocator() *mocks.CalicoIPAllocator {
-	allocator := mocks.CalicoIPAllocator{}
+func mockDockerNetworkManager() *mocks.DockerNetworkManager {
+	m := mocks.DockerNetworkManager{}
 	poolMap := map[string][]types.Pool{
 		"networkName": {
 			{
@@ -239,7 +249,7 @@ func mockAllocator() *mocks.CalicoIPAllocator {
 			},
 		},
 	}
-	allocator.On("GetPoolsByNetworkName", mock.Anything, mock.Anything).Return(func(_ context.Context, name string) []types.Pool {
+	m.On("GetPoolsByNetworkName", mock.Anything, mock.Anything).Return(func(_ context.Context, name string) []types.Pool {
 		return poolMap[name]
 	}, func(_ context.Context, name string) error {
 		if _, ok := poolMap[name]; !ok {
@@ -247,5 +257,5 @@ func mockAllocator() *mocks.CalicoIPAllocator {
 		}
 		return nil
 	})
-	return &allocator
+	return &m
 }
