@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"strings"
 	"time"
 
@@ -101,8 +100,8 @@ func main() {
 	}
 
 	var app *cli.App
-	switch path.Base(os.Args[0]) {
-	case "barrel-cni":
+	switch {
+	case strings.HasSuffix(os.Args[0], "barrel-cni"):
 		store, err := filesystem.NewStore("/var/lib/barrel/cni")
 		if err != nil {
 			log.Fatalf("failed to new store: %+v", err)

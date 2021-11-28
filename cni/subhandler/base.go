@@ -27,6 +27,11 @@ func NewBase(conf config.Config, store store.Store) *Base {
 	}
 }
 
+// Enabled .
+func (h *Base) Enabled() bool {
+	return h.conf != config.Config{}
+}
+
 // BorrowNetEndpoint will snatch the nep
 func (h *Base) BorrowNetEndpoint(containerMeta *cni.ContainerMeta, nep *cni.NetEndpoint) (err error) {
 	if err = h.store.OccupyNetEndpoint(containerMeta.ID(), nep); err != nil {
