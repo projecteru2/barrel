@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/projecteru2/barrel/cni/subhandler"
 	barrelHttp "github.com/projecteru2/barrel/http"
 	"github.com/projecteru2/barrel/proxy"
 	"github.com/projecteru2/barrel/types"
@@ -40,15 +41,17 @@ type containerCreateResponseBody struct {
 
 type containerCreateHandler struct {
 	utils.LoggerFactory
-	client barrelHttp.Client
-	vess   vessel.Helper
+	client  barrelHttp.Client
+	vess    vessel.Helper
+	cniBase *subhandler.Base
 }
 
-func newContainerCreateHandler(client barrelHttp.Client, vess vessel.Helper) proxy.RequestHandler {
+func newContainerCreateHandler(client barrelHttp.Client, vess vessel.Helper, cniBase *subhandler.Base) proxy.RequestHandler {
 	return containerCreateHandler{
 		LoggerFactory: utils.NewObjectLogger("containerCreateHandler"),
 		client:        client,
 		vess:          vess,
+		cniBase:       cniBase,
 	}
 }
 
@@ -294,15 +297,18 @@ func (handler containerCreateHandler) writeServerResponse(
 }
 
 // steps:
+// 0. condition: enable cni && custom network
 // 1. force --net none
 // 2. --label cni => --runtime barrel-cni
 // 3. --label fixed-ip=1 => --env fixed-ip=1
 // 4. --label ipv4=x => --env ipv4=x
 func (handler containerCreateHandler) adaptRequestForCNI(body utils.Object) (err error) {
 	var (
-		hostConfig utils.Object
-		labels     utils.Object
-		env        utils.Array
+		hostConfig  utils.Object
+		labels      utils.Object
+		env         utils.Array
+		networkMode string
+		specificIP  string
 	)
 	logger := handler.Logger("adaptRequestForCNI")
 
@@ -332,26 +338,49 @@ func (handler containerCreateHandler) adaptRequestForCNI(body utils.Object) (err
 		return
 	}
 
-	cniLabel, ok := labels.Get("cni")
-	if !ok || !flagEnabled(cniLabel) {
+	if !handler.cniBase.Enabled() {
 		return
 	}
-	hostConfig.Set("Runtime", utils.NewStringNode("barrel-cni"))
-	hostConfig.Set("NetworkMode", utils.NewStringNode("none"))
-	logger.Info("cni mode detected, set network none")
 
-	if fixedIPLabel, ok := labels.Get(FixedIPLabel); ok && flagEnabled(fixedIPLabel) {
-		labels.Del(FixedIPLabel)
-		env.Add(utils.NewStringNode(FixedIPLabel + "=1"))
-		logger.Info("cni fixed-ip mode detected, set fixed-ip env, delete fixed-ip label")
+	if iNetworkMode, ok := hostConfig.Get("NetworkMode"); !ok || iNetworkMode.Null() {
+		return
+	} else if networkMode, ok = iNetworkMode.StringValue(); !ok {
+		return errors.Errorf("parse NetworkMode error, networkMode=%s", iNetworkMode.String())
+	}
+	if !isCustomNetwork(networkMode) {
+		return
 	}
 
-	specificIPLabel, ok := labels.Get("ipv4")
-	if ok && !specificIPLabel.Null() {
-		if specificIP, ok := specificIPLabel.StringValue(); ok {
-			env.Add(utils.NewStringNode("ipv4=" + specificIP))
-			logger.Info("cni specific-ip mode detected, set ipv4 env")
+	logger.Info("cni mode enabled, set network none, set runtime barrel-cni")
+	hostConfig.Set("Runtime", utils.NewStringNode("barrel-cni"))
+	hostConfig.Set("NetworkMode", utils.NewStringNode("none"))
+	networkConfig, err := ensureObjectMember(body, "NetworkingConfig")
+	if err != nil {
+		return
+	}
+	endpointsConfig, err := ensureObjectMember(networkConfig, "EndpointsConfig")
+	if err != nil {
+		return
+	}
+	endpointConfig, err := ensureObjectMember(endpointsConfig, networkMode)
+	if err != nil {
+		return
+	}
+	if ipamConfig, err := ensureObjectMember(endpointConfig, "IPAMConfig"); err == nil {
+		if ipv4Address, ok := ipamConfig.Get("IPv4Address"); ok && !ipv4Address.Null() {
+			specificIP, _ = ipv4Address.StringValue()
 		}
+	}
+	networkConfig.Set("EndpointsConfig", utils.NewObjectNode().Any())
+
+	if fixedIPLabel, ok := labels.Get(FixedIPLabel); ok && flagEnabled(fixedIPLabel) {
+		logger.Info("cni fixed-ip mode detected, set fixed-ip env")
+		env.Add(utils.NewStringNode(FixedIPLabel + "=1"))
+	}
+
+	if specificIP != "" {
+		logger.Info("cni specific-ip mode detected, set ipv4 env")
+		env.Add(utils.NewStringNode("ipv4=" + specificIP))
 	}
 
 	return nil

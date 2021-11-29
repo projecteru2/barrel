@@ -16,7 +16,7 @@ func NewHandler(dockerDaemonSocket string, dialTimeout time.Duration, cniBase *s
 	inspectAgent := newContainerInspectAgent(client)
 	return proxy.HTTPProxyHandler{
 		Handlers: []proxy.RequestHandler{
-			newContainerCreateHandler(client, vess),
+			newContainerCreateHandler(client, vess, cniBase),
 			newContainerDeleteHandler(client, vess, inspectAgent, cniBase),
 			newContainerInspectHandler(client, vess),
 			newContainerPruneHandle(client, vess),
