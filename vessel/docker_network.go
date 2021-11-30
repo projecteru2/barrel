@@ -28,6 +28,7 @@ func NewDockerNetworkManager(dockerCli *dockerClient.Client, driverName string, 
 		allocator:     allocator,
 		driverName:    driverName,
 		LoggerFactory: utils.NewObjectLogger("dockerNetworkManager"),
+		dockerCli:     dockerCli,
 	}
 }
 
