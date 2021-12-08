@@ -8,6 +8,7 @@ require (
 	github.com/Azure/go-autorest/autorest/adal v0.9.10 // indirect
 	github.com/Microsoft/go-winio v0.4.16 // indirect
 	github.com/containerd/containerd v1.4.3 // indirect
+	github.com/containernetworking/cni v1.0.1 // indirect
 	github.com/coreos/bbolt v1.3.2 // indirect
 	github.com/coreos/etcd v3.3.25+incompatible
 	github.com/coreos/go-semver v0.3.0 // indirect
@@ -39,12 +40,11 @@ require (
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
-	github.com/onsi/ginkgo v1.7.0 // indirect
-	github.com/onsi/gomega v1.4.3 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2
 	github.com/pkg/errors v0.9.1
+	github.com/projectcalico/cni-plugin v3.8.9+incompatible
 	github.com/projectcalico/go-json v0.0.0-20161128004156-6219dc7339ba // indirect
 	github.com/projectcalico/go-yaml-wrapper v0.0.0-20191112210931-090425220c54 // indirect
 	github.com/projectcalico/libcalico-go v3.9.0-0.dev+incompatible
@@ -81,3 +81,5 @@ require (
 replace go.etcd.io/bbolt => github.com/coreos/bbolt v1.3.5
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.5
+
+replace github.com/projecteru2/docker-cni => /home/gray/Dropbox/mac.local/Documents/src/github.com/projecteru2/docker-cni

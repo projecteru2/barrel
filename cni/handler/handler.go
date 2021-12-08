@@ -19,7 +19,7 @@ func NewBarrelHandler(store store.Store) *BarrelHandler {
 	}
 }
 
-func (h BarrelHandler) getSubhandler(conf config.Config, containerMeta *barrelcni.ContainerMeta) subhandler.Subhandler {
+func (h *BarrelHandler) getSubhandler(conf config.Config, containerMeta *barrelcni.ContainerMeta) subhandler.Subhandler {
 	if containerMeta.RequiresFixedIP() && !containerMeta.RequiresSpecificIP() {
 		return subhandler.NewFixed(conf, h.store)
 	}

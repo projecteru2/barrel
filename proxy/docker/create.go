@@ -350,6 +350,7 @@ func (handler containerCreateHandler) adaptRequestForCNI(body utils.Object) (err
 	if !isCustomNetwork(networkMode) {
 		return
 	}
+	env.Add(utils.NewStringNode("IPPOOL=" + networkMode))
 
 	logger.Info("cni mode enabled, set network none, set runtime barrel-cni")
 	hostConfig.Set("Runtime", utils.NewStringNode("barrel-cni"))
@@ -380,7 +381,7 @@ func (handler containerCreateHandler) adaptRequestForCNI(body utils.Object) (err
 
 	if specificIP != "" {
 		logger.Info("cni specific-ip mode detected, set ipv4 env")
-		env.Add(utils.NewStringNode("ipv4=" + specificIP))
+		env.Add(utils.NewStringNode("IPV4=" + specificIP))
 	}
 
 	return nil
