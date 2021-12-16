@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
+	"strings"
 
 	dockertypes "github.com/docker/docker/api/types"
 	dockernetwork "github.com/docker/docker/api/types/network"
@@ -171,7 +172,7 @@ func (handler containerInspectHandler) injectNetworkforCNI(resp *http.Response) 
 			return resp, nil
 		}
 		container.NetworkSettings.Networks = map[string]*dockernetwork.EndpointSettings{
-			"barrel-cni": {
+			handler.CNIIPPoolName(container): {
 				IPAddress: ipv4,
 			},
 		}
@@ -192,4 +193,14 @@ func (handler containerInspectHandler) injectNetworkforCNI(resp *http.Response) 
 
 func (handler containerInspectHandler) isAliveCNIContainer(container *dockertypes.ContainerJSON) bool {
 	return container.HostConfig.Runtime == "barrel-cni" && container.State.Pid > 0 && container.State.Running
+}
+
+func (handler containerInspectHandler) CNIIPPoolName(container *dockertypes.ContainerJSON) string {
+	for _, e := range container.Config.Env {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) == 2 && parts[0] == "IPPOOL" {
+			return parts[1]
+		}
+	}
+	return ""
 }
