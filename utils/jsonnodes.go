@@ -261,7 +261,7 @@ func (node numberNode) StringValue() (string, bool) {
 
 func (node numberNode) String() string {
 	if node.isInt {
-		return strconv.FormatInt(node.intValue, 64)
+		return strconv.FormatInt(node.intValue, 10)
 	}
 	return strconv.FormatFloat(node.floatValue, 'b', -1, 64)
 }
