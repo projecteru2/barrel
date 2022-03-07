@@ -338,6 +338,8 @@ github.com/projecteru2/docker-cni v0.0.1-rc.3 h1:tnNh7IOg8zK0OAIawKAmGnpRNWVhffS
 github.com/projecteru2/docker-cni v0.0.1-rc.3/go.mod h1:4sXRZ9D5SLC7SMy1mjKadqAx0RUw0v3vAgMvlF7XfIs=
 github.com/projecteru2/docker-cni v0.0.1-rc.4 h1:Rm5J+DV0uXkshUeOL4+9J8cQJss2L3PjPlCje1Xvprg=
 github.com/projecteru2/docker-cni v0.0.1-rc.4/go.mod h1:4sXRZ9D5SLC7SMy1mjKadqAx0RUw0v3vAgMvlF7XfIs=
+github.com/projecteru2/docker-cni v0.0.1-rc.5 h1:YrGCeqqUIiELGdfKK40yrnlwQ4Xe+TJI5FAOC+juSjE=
+github.com/projecteru2/docker-cni v0.0.1-rc.5/go.mod h1:4sXRZ9D5SLC7SMy1mjKadqAx0RUw0v3vAgMvlF7XfIs=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
 github.com/prometheus/client_golang v1.0.0/go.mod h1:db9x61etRT2tGnBNRi70OPL5FsnadC4Ky3P0J6CfImo=
 github.com/prometheus/client_golang v1.7.1 h1:NTGy1Ja9pByO+xAeH/qiWnLrKtr3hJPNjaVUwnjpdpA=
@@ -520,6 +522,8 @@ golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e h1:AyodaIpKjppX+cBfTASF2E1US
 golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e h1:fLOSk5Q00efkSvAm+4xcoXD+RRmLmmulPn5I3Y9F2EM=
 golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9 h1:nhht2DYV/Sn3qOayu8lM+cU1ii9sTLUeBQwQQfUHtrs=
+golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db/go.mod h1:bEr9sfX3Q8Zfm5fL9x+3itogRgK3+ptLWKqgva+5dAk=
