@@ -14,9 +14,12 @@ func (h *BarrelHandler) HandleCNIConfig(config []byte) (newConfig []byte, err er
 	cniArgs := os.Getenv("CNI_ARGS")
 	ippool := ""
 	for _, args := range strings.Split(cniArgs, ";") {
+		if args == "" {
+			continue
+		}
 		parts := strings.Split(args, "=")
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid CNI_ARGS: %s", args)
+			return nil, fmt.Errorf("invalid CNI_ARGS: '%s'", cniArgs)
 		}
 		if parts[0] == "IPPOOL" {
 			ippool = parts[1]

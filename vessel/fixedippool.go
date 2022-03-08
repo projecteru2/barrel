@@ -23,6 +23,7 @@ type FixedIPPoolManager interface {
 	AssignFixedIP(context.Context, types.IP) error
 	UnassignFixedIP(context.Context, types.IP) error
 	UnallocFixedIP(context.Context, types.IP, bool) error
+	GetFixedIP(context.Context, types.IP, func(context.Context, types.IP, *codecs.IPInfoCodec) error) (*codecs.IPInfoCodec, error)
 }
 
 // FixedIPPool .
@@ -64,7 +65,7 @@ func (pool fixedIPPool) AssignFixedIP(ctx context.Context, ip types.IP) error {
 		err         error
 	)
 
-	if ipInfoCodec, err = pool.getFixedIP(ctx, ip, nil); err != nil {
+	if ipInfoCodec, err = pool.GetFixedIP(ctx, ip, nil); err != nil {
 		return err
 	}
 	if ipInfoCodec.IPInfo.Status.Match(types.IPStatusInUse) {
@@ -101,7 +102,7 @@ func (pool fixedIPPool) UnassignFixedIP(ctx context.Context, ip types.IP) error 
 		err         error
 	)
 
-	if ipInfoCodec, err = pool.getFixedIP(ctx, ip, nil); err != nil {
+	if ipInfoCodec, err = pool.GetFixedIP(ctx, ip, nil); err != nil {
 		return err
 	}
 
@@ -130,7 +131,7 @@ func (pool fixedIPPool) BorrowFixedIP(ctx context.Context, ip types.IP, containe
 
 	cnt := 0
 	for cnt < retryMaxCount {
-		codec, err := pool.getFixedIP(ctx, ip, nil)
+		codec, err := pool.GetFixedIP(ctx, ip, nil)
 		if err != nil {
 			return err
 		}
@@ -157,7 +158,7 @@ func (pool fixedIPPool) ReturnFixedIP(ctx context.Context, ip types.IP, containe
 
 	cnt := 0
 	for cnt < retryMaxCount {
-		codec, err := pool.getFixedIP(ctx, ip, nil)
+		codec, err := pool.GetFixedIP(ctx, ip, nil)
 		if err != nil {
 			return err
 		}
@@ -210,7 +211,7 @@ func (pool fixedIPPool) UnallocFixedIP(ctx context.Context, ip types.IP, force b
 	// 	return types.ErrFixedIPNotAllocated
 	// }
 
-	if ipInfoCodec, err = pool.getFixedIP(ctx, ip, nil); err != nil {
+	if ipInfoCodec, err = pool.GetFixedIP(ctx, ip, nil); err != nil {
 		return err
 	}
 
@@ -253,7 +254,7 @@ func (pool fixedIPPool) logger(method string) *log.Entry {
 	return log.WithField("Receiver", "fixedIPPool").WithField("Method", method)
 }
 
-func (pool fixedIPPool) getFixedIP(
+func (pool fixedIPPool) GetFixedIP(
 	ctx context.Context,
 	ip types.IP,
 	allocateFixedIP func(context.Context, types.IP, *codecs.IPInfoCodec) error,
@@ -311,7 +312,7 @@ func (alloc fixedIPAllocator) AllocFixedIP(ctx context.Context, ip types.IP) err
 		ipInfoCodec *codecs.IPInfoCodec
 		err         error
 	)
-	if ipInfoCodec, err = alloc.getFixedIP(ctx, ip, alloc.createFixedIP); err != nil {
+	if ipInfoCodec, err = alloc.GetFixedIP(ctx, ip, alloc.createFixedIP); err != nil {
 		return err
 	}
 
