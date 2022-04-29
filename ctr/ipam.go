@@ -2,8 +2,8 @@ package ctr
 
 import (
 	"context"
-
-	log "github.com/sirupsen/logrus"
+	"fmt"
+	"reflect"
 
 	v3 "github.com/projectcalico/libcalico-go/lib/apis/v3"
 	"github.com/projectcalico/libcalico-go/lib/backend/model"
@@ -11,6 +11,7 @@ import (
 	cerrors "github.com/projectcalico/libcalico-go/lib/errors"
 	cnet "github.com/projectcalico/libcalico-go/lib/net"
 	"github.com/projectcalico/libcalico-go/lib/options"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/projecteru2/barrel/store"
 	"github.com/projecteru2/barrel/types"
@@ -92,6 +93,17 @@ func (c *Ctr) AssignIP(ctx context.Context, ip types.IP) error {
 	)
 }
 
+func getCIDRFromModelKey(key model.Key) (cnet.IPNet, error) {
+	switch k := key.(type) {
+	case model.BlockKey:
+		return k.CIDR, nil
+	case model.BlockAffinityKey:
+		return k.CIDR, nil
+	default:
+		return cnet.IPNet{}, fmt.Errorf("unknown type %v", reflect.TypeOf(key))
+	}
+}
+
 // ListBlocks .
 func (c *Ctr) ListBlocks(ctx context.Context, opt ListBlockOpt) (result []*model.AllocationBlock, err error) {
 	var (
@@ -116,10 +128,14 @@ func (c *Ctr) ListBlocks(ctx context.Context, opt ListBlockOpt) (result []*model
 
 	// Iterate through and extract the block CIDRs.
 	for _, o := range datastoreObjs.KVPairs {
-		k := o.Key.(model.BlockKey)
+		cidr, err := getCIDRFromModelKey(o.Key)
+		if err != nil {
+			log.Warnf("Skip block %s: %v", o.Key.String(), err)
+			continue
+		}
 
 		if ipPool == nil {
-			blocks = append(blocks, k.CIDR)
+			blocks = append(blocks, cidr)
 			continue
 		}
 
@@ -132,8 +148,8 @@ func (c *Ctr) ListBlocks(ctx context.Context, opt ListBlockOpt) (result []*model
 			return nil, err
 		}
 
-		if poolNet.Contains(k.CIDR.IPNet.IP) {
-			blocks = append(blocks, k.CIDR)
+		if poolNet.Contains(cidr.IPNet.IP) {
+			blocks = append(blocks, cidr)
 		}
 	}
 
